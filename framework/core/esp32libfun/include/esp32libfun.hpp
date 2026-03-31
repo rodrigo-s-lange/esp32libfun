@@ -6,35 +6,35 @@
 #include "freertos/task.h"
 
 #if CONFIG_ESP32LIBFUN_SERIAL
-#include "esp32libfun_serial.hpp"
+#include "../../esp32libfun_serial/include/esp32libfun_serial.hpp"
 #endif
 
 #if CONFIG_ESP32LIBFUN_AT
-#include "esp32libfun_at.hpp"
+#include "../../esp32libfun_at/include/esp32libfun_at.hpp"
 #endif
 
 #if CONFIG_ESP32LIBFUN_DELAY
-#include "esp32libfun_delay.hpp"
+#include "../../esp32libfun_delay/include/esp32libfun_delay.hpp"
 #endif
 
 #if CONFIG_ESP32LIBFUN_GPIO
-#include "esp32libfun_gpio.hpp"
+#include "../../esp32libfun_gpio/include/esp32libfun_gpio.hpp"
 #endif
 
 #if CONFIG_ESP32LIBFUN_I2C
-#include "esp32libfun_i2c.hpp"
+#include "../../esp32libfun_i2c/include/esp32libfun_i2c.hpp"
 #endif
 
 #if CONFIG_ESP32LIBFUN_RUNTIME
-#include "esp32libfun_runtime.hpp"
+#include "../../esp32libfun_runtime/include/esp32libfun_runtime.hpp"
 #endif
 
 #if CONFIG_ESP32LIBFUN_WIFI_STA
-#include "esp32libfun_wifi_sta.hpp"
+#include "../../esp32libfun_wifi_sta/include/esp32libfun_wifi_sta.hpp"
 #endif
 
 #if CONFIG_ESP32LIBFUN_WEBSERVER
-#include "esp32libfun_webserver.hpp"
+#include "../../esp32libfun_webserver/include/esp32libfun_webserver.hpp"
 #endif
 
 #define ESP32LIBFUN_VERSION "v0.0.0"

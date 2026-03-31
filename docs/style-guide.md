@@ -48,6 +48,12 @@ The project has two component families:
 - core modules in `framework/core/esp32libfun_xxx/`
 - device and higher-level libraries in `framework/libs/esp_xxx/`
 
+Dependency rule:
+
+- `esp_*` libraries depend on the specific `esp32libfun_*` modules they use
+- `esp_*` libraries do not depend on the `esp32libfun` aggregator
+- the `esp32libfun` component is an application-facing convenience layer
+
 Core examples:
 
 - `esp32libfun_gpio`
@@ -204,6 +210,11 @@ Use:
 
 - `REQUIRES` for public dependency propagation
 - `PRIV_REQUIRES` for implementation-only dependencies
+
+For higher-level libraries:
+
+- depend on `esp32libfun_i2c`, `esp32libfun_gpio`, `esp32libfun_serial`, or other specific core modules as needed
+- do not depend on `esp32libfun` unless the library is intentionally an application-facing convenience wrapper
 
 When a module is optional, connect it to:
 

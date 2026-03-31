@@ -85,6 +85,9 @@ framework. It should:
 - aggregate the public headers of enabled core modules
 - initialize only the modules that truly benefit from centralized setup
 
+It is a convenience layer, not a required dependency for higher-level
+libraries.
+
 Public references:
 
 - `ESP32LIBFUN_VERSION`
@@ -108,6 +111,12 @@ Each external library should feel native to the framework:
 - explicit setup
 - small header
 - low boilerplate
+
+Dependency rule:
+
+- `esp_*` libraries should depend on the specific core modules they use
+- `esp_*` libraries should not depend on the `esp32libfun` aggregator
+- applications may use the aggregator for convenience or use core modules directly
 
 ## API Direction
 
@@ -187,7 +196,7 @@ The preferred configuration flow is:
 This allows the framework to stay small while keeping optional features easy to
 turn on when needed.
 
-## Initialization and Optional Adapters
+## Initialization and Adapters
 
 Some modules are useful as direct libraries.
 Some modules are useful as optional adapters.
@@ -196,7 +205,8 @@ A good example is AT integration:
 
 - the base library should work on its own
 - AT support can be added as an optional layer
-- the application decides when to register commands and start the console
+- the aggregator may start shared services for convenience
+- direct users can still initialize only the pieces they need
 
 This keeps the device logic clean and reusable.
 
