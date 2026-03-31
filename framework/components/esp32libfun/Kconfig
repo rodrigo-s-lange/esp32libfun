@@ -1,0 +1,70 @@
+menu "ESP32LIBFUN"
+
+    config ESP32LIBFUN_SERIAL
+        bool "Enable serial module"
+        default y
+        help
+            Builds and exposes esp32libfun_serial.
+
+    config ESP32LIBFUN_AT
+        bool "Enable AT console module"
+        default y
+        depends on ESP32LIBFUN_SERIAL
+        help
+            Builds and exposes esp32libfun_at.
+            The AT console is initialized and started from esp32libfun_init().
+
+    config ESP32LIBFUN_AT_MAX_CMDS
+        int "Maximum AT commands"
+        default 16
+        depends on ESP32LIBFUN_AT
+        range 1 128
+        help
+            Fixed-size AT registry capacity used by self-registering and manual commands.
+
+    config ESP32LIBFUN_DELAY
+        bool "Enable delay module"
+        default y
+        help
+            Builds and exposes esp32libfun_delay.
+
+    config ESP32LIBFUN_GPIO
+        bool "Enable GPIO module"
+        default y
+        help
+            Builds and exposes esp32libfun_gpio.
+
+    config ESP32LIBFUN_I2C
+        bool "Enable I2C module"
+        default y
+        help
+            Builds and exposes esp32libfun_i2c.
+
+    config ESP32LIBFUN_RUNTIME
+        bool "Enable runtime module"
+        default y
+        help
+            Builds and exposes esp32libfun_runtime.
+            Self-registered runtime hooks run from esp32libfun_init().
+
+    config ESP32LIBFUN_RUNTIME_MAX_MODULES
+        int "Maximum runtime modules"
+        default 8
+        depends on ESP32LIBFUN_RUNTIME
+        range 1 64
+        help
+            Fixed-size runtime registry capacity for self-registering modules.
+
+    config ESP32LIBFUN_WIFI_STA
+        bool "Enable Wi-Fi STA module"
+        default y
+        help
+            Builds and exposes esp32libfun_wifi_sta.
+
+    config ESP32LIBFUN_WEBSERVER
+        bool "Enable webserver module"
+        default y
+        help
+            Builds and exposes esp32libfun_webserver.
+
+endmenu
