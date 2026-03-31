@@ -21,6 +21,10 @@
 #include "../../esp32libfun_gpio/include/esp32libfun_gpio.hpp"
 #endif
 
+#if CONFIG_ESP32LIBFUN_BUTTON
+#include "../../esp32libfun_button/include/esp32libfun_button.hpp"
+#endif
+
 #if CONFIG_ESP32LIBFUN_I2C
 #include "../../esp32libfun_i2c/include/esp32libfun_i2c.hpp"
 #endif

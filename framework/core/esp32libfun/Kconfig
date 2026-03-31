@@ -34,6 +34,13 @@ menu "ESP32LIBFUN"
         help
             Builds and exposes esp32libfun_gpio.
 
+    config ESP32LIBFUN_BUTTON
+        bool "Enable button module"
+        default y
+        depends on ESP32LIBFUN_GPIO
+        help
+            Builds and exposes esp32libfun_button.
+
     config ESP32LIBFUN_I2C
         bool "Enable I2C module"
         default y
