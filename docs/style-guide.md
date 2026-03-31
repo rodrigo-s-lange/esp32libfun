@@ -45,8 +45,8 @@ This principle should lead to concrete choices:
 
 The project has two component families:
 
-- core modules in `framework/components/esp32libfun_xxx/`
-- device and higher-level libraries in `framework/components/esp_xxx/`
+- core modules in `framework/core/esp32libfun_xxx/`
+- device and higher-level libraries in `framework/libs/esp_xxx/`
 
 Core examples:
 
@@ -64,8 +64,8 @@ Folder name, CMake target, and main public header should match.
 
 Examples:
 
-- `framework/components/esp32libfun_i2c/`
-- `framework/components/esp_pca9685/`
+- `framework/core/esp32libfun_i2c/`
+- `framework/libs/esp_pca9685/`
 - `include/esp32libfun_i2c.hpp`
 - `include/esp_pca9685.hpp`
 

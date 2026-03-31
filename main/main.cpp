@@ -1,14 +1,13 @@
 #include "esp32libfun.hpp"
 
-int x = 0;
+uint64_t x = 0;
 
 extern "C" void app_main(void)
 {
     esp32libfun_init();
+    serial.println(C "Hello from Libfun! Version: %s", ESP32LIBFUN_VERSION);
     while (true) {
-        delay.s(10);
-        serial.println(C "X = %d",x);
-        x++;               
+        serial.println(O "Tick: " C "%llu", x++);
+        delay.s(1);        
     }
-    
 }
