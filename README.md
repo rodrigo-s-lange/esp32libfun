@@ -39,7 +39,9 @@ extern "C" void app_main(void)
 
     while (true) {
         gpio.toggle(kLedPin);
+        // C = cyan color macro, O = orange, W = white, etc.
         serial.println(O "LED on GPIO " C "%d", kLedPin);
+        // Short delay API keeps the common path compact.
         delay.s(1);
     }
 }
@@ -130,6 +132,19 @@ main/                          -> fast iteration and hardware validation
 - use `esp_*` libraries when you want device-focused behavior on top of the core
 - use `esp_component_template` when creating a new library in the project style
 
----
+## Get Started
 
-This README is being built in stages. The next section will be `Get Started`.
+This section is being built next. The intended flow is:
+
+1. Install ESP-IDF 6.0 and the VS Code ESP-IDF extension
+2. Open this repository in VS Code
+3. Select the target and serial port
+4. Build, flash, and monitor the example in `main/main.cpp`
+5. Start editing the core or an `esp_*` library from there
+
+Planned additions for this section:
+
+- one clean VS Code screenshot
+- the exact build / flash / monitor commands
+- the shortest possible first-run path
+- a pointer to `docs/examples/` and `esp_component_template`
