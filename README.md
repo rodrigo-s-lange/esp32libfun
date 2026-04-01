@@ -72,6 +72,31 @@ extern "C" void app_main(void)
 }
 ```
 
+The same library can also opt into a managed task when convenience matters more than manual polling:
+
+```cpp
+#include "esp32libfun.hpp"
+#include "esp_button.hpp"
+
+static void onButtonClick(Button &instance)
+{
+    serial.println(O "Button click on GPIO " C "%d", instance.pin());
+}
+
+extern "C" void app_main(void)
+{
+    esp32libfun_init();
+
+    button.init(9, BUTTON_INPUT_PULLUP, true);
+    button.onClick(onButtonClick);
+    button.start();
+
+    while (true) {
+        delay.s(1);
+    }
+}
+```
+
 ## Mental Model
 
 ```text
