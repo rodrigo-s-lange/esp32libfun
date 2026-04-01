@@ -24,32 +24,51 @@ favors APIs that are easy to scan, easy to type, and easy to extend.
 ```cpp
 #include "esp32libfun.hpp"
 
-uint64_t tick = 0;
+constexpr int kLedPin = 8;
 
 extern "C" void app_main(void)
 {
     esp32libfun_init();
 
     serial.println(C "Hello from Libfun! Version: %s", ESP32LIBFUN_VERSION);
+    gpio.cfg(kLedPin, OUTPUT);
 
     while (true) {
-        serial.println(O "Tick: " C "%llu", tick++);
+        gpio.toggle(kLedPin);
+        serial.println(O "LED on GPIO " C "%d", kLedPin);
         delay.s(1);
     }
 }
 ```
 
-```cpp
-#include "esp32libfun_i2c.hpp"
-#include "esp_pca9685.hpp"
+The core stays thin and direct:
 
-Pca9685 pca9685;
+- `serial` gives fast textual feedback
+- `gpio` stays close to the hardware
+- `delay` keeps simple loops readable
+
+On top of that, `esp_*` libraries add reusable behavior without forcing a giant framework:
+
+```cpp
+#include "esp32libfun.hpp"
+#include "esp_button.hpp"
+
+static void onButtonClick(Button &instance)
+{
+    serial.println(O "Button click on GPIO " C "%d", instance.pin());
+}
 
 extern "C" void app_main(void)
 {
-    ESP_ERROR_CHECK(i2c.begin(8, 9, I2C_FAST));
-    ESP_ERROR_CHECK(pca9685.init());
-    ESP_ERROR_CHECK(pca9685.duty(0, 50));
+    esp32libfun_init();
+
+    button.init(9, BUTTON_INPUT_PULLUP, true);
+    button.onClick(onButtonClick);
+
+    while (true) {
+        button.loop();
+        delay.ms(5);
+    }
 }
 ```
 
