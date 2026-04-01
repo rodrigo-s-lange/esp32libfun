@@ -24,19 +24,9 @@ if(CONFIG_ESP32LIBFUN_GPIO)
     list(APPEND priv_requires esp32libfun_gpio)
 endif()
 
-if(CONFIG_ESP32LIBFUN_BUTTON)
-    list(APPEND requires esp32libfun_button)
-    list(APPEND priv_requires esp32libfun_button)
-endif()
-
 if(CONFIG_ESP32LIBFUN_I2C)
     list(APPEND requires esp32libfun_i2c)
     list(APPEND priv_requires esp32libfun_i2c)
-endif()
-
-if(CONFIG_ESP32LIBFUN_RUNTIME)
-    list(APPEND requires esp32libfun_runtime)
-    list(APPEND priv_requires esp32libfun_runtime)
 endif()
 
 if(CONFIG_ESP32LIBFUN_WIFI_STA)

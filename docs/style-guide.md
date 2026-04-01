@@ -99,6 +99,9 @@ Examples of good names:
 
 - `begin`
 - `end`
+- `init`
+- `start`
+- `stop`
 - `cfg`
 - `read`
 - `write`
@@ -107,6 +110,14 @@ Examples of good names:
 - `toggle`
 - `freq`
 - `duty`
+
+Core modules and higher-level libraries do not need identical naming if their
+roles are different.
+
+Guideline:
+
+- `framework/core/esp32libfun_*` may keep pragmatic names that match the ESP-IDF concept closely
+- `framework/libs/esp_*` should prefer a more explicit and user-facing lifecycle when they own richer behavior
 
 ## 5. Human and LLM Friendly Code
 
@@ -169,6 +180,35 @@ Good patterns:
 - `end()` releases resources
 - `ready()` reports availability
 - `read()` and `write()` perform the expected transport action directly
+
+For libraries in `framework/libs/esp_*` with optional runtime automation, use
+this contract:
+
+- `init(...)` configures the library in manual mode
+- `start(...)` enables an internal task or background service
+- `stop()` disables that task or service
+- `end()` releases the full library state
+
+Meaning:
+
+- `init()` must not create hidden tasks
+- `start()` is the explicit opt-in point for managed runtime
+- `stop()` should preserve the configured library state when practical
+- `end()` should return the instance to an uninitialized state
+
+This rule exists to preserve predictability for advanced users while keeping
+convenience available for rapid prototyping.
+
+This is a recommended pattern for `esp_*` libraries, not a hard rule for the
+core.
+
+Core modules may use thinner and more domain-specific lifecycles such as:
+
+- `begin()` / `end()`
+- `connect()` / `disconnect()`
+- `clean()`
+
+if that produces a clearer wrapper over ESP-IDF.
 
 For very simple peripherals, a global object with lightweight state is a good
 fit.

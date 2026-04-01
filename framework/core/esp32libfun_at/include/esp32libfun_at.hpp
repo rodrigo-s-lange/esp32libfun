@@ -58,8 +58,8 @@ extern At at;
 /// Self-registering AT command plugin.
 ///
 /// Declare a static instance in any component's .cpp file to register a
-/// command without modifying At or Runtime.  Captureless lambdas are the
-/// only supported handler form — they decay to at_handler_t with no heap.
+/// command without modifying the AT core. Captureless lambdas are the only
+/// supported handler form and decay to at_handler_t with no heap.
 ///
 /// @code
 /// // esp_wifi.cpp

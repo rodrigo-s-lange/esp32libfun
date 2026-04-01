@@ -34,33 +34,11 @@ menu "ESP32LIBFUN"
         help
             Builds and exposes esp32libfun_gpio.
 
-    config ESP32LIBFUN_BUTTON
-        bool "Enable button module"
-        default y
-        depends on ESP32LIBFUN_GPIO
-        help
-            Builds and exposes esp32libfun_button.
-
     config ESP32LIBFUN_I2C
         bool "Enable I2C module"
         default y
         help
             Builds and exposes esp32libfun_i2c.
-
-    config ESP32LIBFUN_RUNTIME
-        bool "Enable runtime module"
-        default y
-        help
-            Builds and exposes esp32libfun_runtime.
-            Self-registered runtime hooks run from esp32libfun_init().
-
-    config ESP32LIBFUN_RUNTIME_MAX_MODULES
-        int "Maximum runtime modules"
-        default 8
-        depends on ESP32LIBFUN_RUNTIME
-        range 1 64
-        help
-            Fixed-size runtime registry capacity for self-registering modules.
 
     config ESP32LIBFUN_WIFI_STA
         bool "Enable Wi-Fi STA module"

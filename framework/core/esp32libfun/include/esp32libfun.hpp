@@ -5,6 +5,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+// This aggregator uses explicit relative includes on purpose so the header stays
+// self-contained and mirrors the core directory layout directly.
 #if CONFIG_ESP32LIBFUN_SERIAL
 #include "../../esp32libfun_serial/include/esp32libfun_serial.hpp"
 #endif
@@ -21,16 +23,8 @@
 #include "../../esp32libfun_gpio/include/esp32libfun_gpio.hpp"
 #endif
 
-#if CONFIG_ESP32LIBFUN_BUTTON
-#include "../../esp32libfun_button/include/esp32libfun_button.hpp"
-#endif
-
 #if CONFIG_ESP32LIBFUN_I2C
 #include "../../esp32libfun_i2c/include/esp32libfun_i2c.hpp"
-#endif
-
-#if CONFIG_ESP32LIBFUN_RUNTIME
-#include "../../esp32libfun_runtime/include/esp32libfun_runtime.hpp"
 #endif
 
 #if CONFIG_ESP32LIBFUN_WIFI_STA

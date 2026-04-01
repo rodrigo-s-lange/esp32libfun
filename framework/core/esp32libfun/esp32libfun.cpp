@@ -27,10 +27,6 @@ void esp32libfun_init(void)
     serial.println(O "esp32libfun " C "%s", esp32libfun_version());
 #endif
 
-#if CONFIG_ESP32LIBFUN_RUNTIME
-    esp32libfun_runtime_init();
-#endif
-
 #if CONFIG_ESP32LIBFUN_AT
     ESP_ERROR_CHECK(at.init());
     ESP_ERROR_CHECK(at.start());

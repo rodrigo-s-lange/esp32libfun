@@ -14,8 +14,21 @@ public:
     static constexpr uint16_t MAX_PWM_HZ = 1526;
     static constexpr uint8_t CHANNELS = 16;
 
-    /// Attaches one PCA9685 device already reachable through esp32libfun_i2c and configures its PWM frequency.
-    esp_err_t begin(uint16_t address = DEFAULT_ADDRESS, int port = 0, uint16_t frequency_hz = DEFAULT_PWM_HZ);
+    /// Configures one PCA9685 device already reachable through `esp32libfun_i2c`.
+    ///
+    /// This library is direct and synchronous, so it uses `init()` / `end()`
+    /// and does not expose `start()` / `stop()`.
+    ///
+    /// @param address I2C address of the PCA9685.
+    /// @param port I2C bus index already initialized in `esp32libfun_i2c`.
+    /// @param frequency_hz PWM base frequency for all channels.
+    /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure.
+    esp_err_t init(uint16_t address = DEFAULT_ADDRESS, int port = 0, uint16_t frequency_hz = DEFAULT_PWM_HZ);
+    /// Compatibility alias for older examples.
+    inline esp_err_t begin(uint16_t address = DEFAULT_ADDRESS, int port = 0, uint16_t frequency_hz = DEFAULT_PWM_HZ)
+    {
+        return init(address, port, frequency_hz);
+    }
     /// Releases the registered I2C device reference.
     esp_err_t end(void);
     /// Returns true when the instance is attached to a registered PCA9685 device.

@@ -65,7 +65,7 @@ esp_err_t Pca9685::ensureReady(void) const
     return ESP_OK;
 }
 
-esp_err_t Pca9685::begin(uint16_t address, int port, uint16_t frequency_hz)
+esp_err_t Pca9685::init(uint16_t address, int port, uint16_t frequency_hz)
 {
     if (!isValidFrequency(frequency_hz) || address > 0x7F) {
         return ESP_ERR_INVALID_ARG;
@@ -110,7 +110,7 @@ esp_err_t Pca9685::begin(uint16_t address, int port, uint16_t frequency_hz)
         return err;
     }
 
-    ESP_LOGI(TAG, "attached to 0x%02X on I2C bus %d @ %u Hz", address_, port_, static_cast<unsigned>(frequency_hz_));
+    ESP_LOGI(TAG, "initialized at 0x%02X on I2C bus %d @ %u Hz", address_, port_, static_cast<unsigned>(frequency_hz_));
     return ESP_OK;
 }
 

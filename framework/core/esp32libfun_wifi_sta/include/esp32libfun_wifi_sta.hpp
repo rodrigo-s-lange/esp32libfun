@@ -8,9 +8,15 @@ namespace esp32libfun {
 
 class WifiSta {
 public:
+    /// Starts or reconfigures the STA connection flow.
+    ///
+    /// This core wrapper intentionally keeps Wi-Fi semantics close to ESP-IDF.
+    /// It is not required to follow the richer `init/start/stop/end` pattern
+    /// used by some `framework/libs/esp_*` components.
     esp_err_t begin(const char *ssid, const char *password = nullptr) const;
-    // Clears stored STA credentials/config and resets the wrapper state.
+    /// Clears stored STA credentials/config and resets the wrapper state.
     esp_err_t clean(void) const;
+    /// Disconnects the current STA session without clearing saved configuration.
     esp_err_t disconnect(void) const;
     [[nodiscard]] bool isConnected(void) const;
     [[nodiscard]] bool waitConnected(uint32_t timeout_ms) const;

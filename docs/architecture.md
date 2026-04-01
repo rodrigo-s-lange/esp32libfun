@@ -137,6 +137,42 @@ Good APIs in this project usually have these properties:
 - predictable return values
 - small amount of hidden state
 
+## Runtime Model
+
+The framework values predictable runtime behavior.
+
+Libraries in `framework/libs/esp_*` should work in a direct manual mode by
+default and may offer an optional managed runtime mode when that improves
+convenience.
+
+Preferred direction:
+
+- `init(...)` prepares the library without starting its own task
+- manual operation remains available after `init(...)`
+- `start(...)` may enable a managed task or background service
+- `stop()` disables that managed runtime layer while keeping the library usable
+- `end()` releases the library resources completely
+
+This model gives two valid usage styles:
+
+- explicit control for applications that care about scheduling and determinism
+- convenience for applications that want a ready-to-run background behavior
+
+When a library starts its own task, that choice should be explicit in the API
+and easy to discover from the header alone.
+
+Core modules in `framework/core/esp32libfun_*` do not need to follow this
+contract rigidly.
+
+The core is allowed to use simpler or more domain-specific names such as:
+
+- `begin(...)`
+- `connect(...)`
+- `disconnect(...)`
+- `clean(...)`
+
+The rule for the core is pragmatism, not symmetry for its own sake.
+
 ## Human and LLM Readability
 
 The framework should optimize for two readers at the same time:
@@ -209,6 +245,15 @@ A good example is AT integration:
 - direct users can still initialize only the pieces they need
 
 This keeps the device logic clean and reusable.
+
+The same idea applies to internal runtime behavior in higher-level libraries:
+
+- direct operation should stay available
+- managed runtime should be optional
+- background tasks should never be surprising
+
+Core modules may expose thinner wrappers when the ESP-IDF concept already has a
+natural lifecycle of its own.
 
 ## Boards and Pins
 
