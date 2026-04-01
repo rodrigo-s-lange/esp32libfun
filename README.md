@@ -134,7 +134,9 @@ main/                          -> fast iteration and hardware validation
 
 ## Get Started
 
-Clone the repository first:
+Use VS Code with the ESP-IDF extension.
+
+Clone the repository and open it in VS Code:
 
 ```bash
 git clone https://github.com/rodrigo-s-lange/esp32libfun.git
@@ -145,7 +147,7 @@ code .
 Then follow the first-run flow:
 
 1. Install ESP-IDF 6.0 and the VS Code ESP-IDF extension
-2. Open this repository in VS Code
+2. Open the cloned repository in VS Code
 3. Select the target and serial port
 4. Build, flash, and monitor the example in `main/main.cpp`
 5. Start editing the core or an `esp_*` library from there
