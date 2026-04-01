@@ -134,7 +134,15 @@ main/                          -> fast iteration and hardware validation
 
 ## Get Started
 
-This section is being built next. The intended flow is:
+Clone the repository first:
+
+```bash
+git clone https://github.com/rodrigo-s-lange/esp32libfun.git
+cd esp32libfun
+code .
+```
+
+Then follow the first-run flow:
 
 1. Install ESP-IDF 6.0 and the VS Code ESP-IDF extension
 2. Open this repository in VS Code
