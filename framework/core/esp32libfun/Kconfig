@@ -1,10 +1,15 @@
 menu "ESP32LIBFUN"
 
+    comment "For ESP32-C3/S3/C6/H2 boards with native USB, prefer ESP-IDF console = USB Serial/JTAG"
+
     config ESP32LIBFUN_SERIAL
         bool "Enable serial module"
         default y
         help
             Builds and exposes esp32libfun_serial.
+            On targets with native USB, the recommended ESP-IDF console backend
+            is USB Serial/JTAG because it avoids external USB-UART adapters and
+            usually gives the smoothest first-run experience.
 
     config ESP32LIBFUN_AT
         bool "Enable AT console module"

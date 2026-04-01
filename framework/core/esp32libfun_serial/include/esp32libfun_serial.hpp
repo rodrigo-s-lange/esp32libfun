@@ -32,12 +32,22 @@
 
 class Serial {
 public:
+    /// Initializes the configured ESP-IDF console backend.
     esp_err_t init(void);
+    /// Deinitializes the configured console backend.
     esp_err_t deinit(void);
+    /// Returns true when the serial backend is initialized and ready.
     bool isInitialized(void) const;
 
+    /// Returns one byte from the active console backend, or a negative value on timeout.
     int       readByte(char *ch) const;
+    /// Reads one line from the active console backend.
+    ///
+    /// Accepts `\\n`, `\\r`, and `\\r\\n` line endings.
     esp_err_t readLine(char *buffer, size_t length) const;
+
+    /// Returns the active console backend name for logs and diagnostics.
+    const char *backend(void) const;
 
     void print(const char *fmt, ...)   const __attribute__((format(printf, 2, 3)));
     void println(const char *fmt, ...) const __attribute__((format(printf, 2, 3)));

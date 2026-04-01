@@ -11,8 +11,31 @@
 
 static const char *TAG = "esp32libfun_serial";
 static bool s_usb_serial_jtag_installed = false;
+static bool s_skip_next_lf = false;
 
 Serial serial;
+
+static const char *serial_backend_name(void)
+{
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+    return "USB Serial/JTAG";
+#elif CONFIG_ESP_CONSOLE_UART
+    return "UART";
+#else
+    return "unsupported";
+#endif
+}
+
+#if !CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+static bool serial_target_has_native_usb(void)
+{
+#if CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2
+    return true;
+#else
+    return false;
+#endif
+}
+#endif
 
 static esp_err_t serial_write_bytes(const char *data, size_t length)
 {
@@ -73,7 +96,14 @@ esp_err_t Serial::init(void)
 #endif
 
     initialized_ = true;
-    ESP_LOGI(TAG, "initialized");
+    ESP_LOGI(TAG, "initialized using %s backend", serial_backend_name());
+
+#if !CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+    if (serial_target_has_native_usb()) {
+        ESP_LOGW(TAG, "target has native USB; USB Serial/JTAG is usually the easiest console backend");
+    }
+#endif
+
     return ESP_OK;
 }
 
@@ -122,8 +152,15 @@ esp_err_t Serial::readLine(char *buffer, size_t length) const
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
+        if (s_skip_next_lf) {
+            s_skip_next_lf = false;
+            if (ch == '\n') {
+                continue;
+            }
+        }
         if (ch == '\r') {
-            continue;
+            s_skip_next_lf = true;
+            break;
         }
         if (ch == '\n') {
             break;
@@ -133,6 +170,11 @@ esp_err_t Serial::readLine(char *buffer, size_t length) const
 
     buffer[index] = '\0';
     return ESP_OK;
+}
+
+const char *Serial::backend(void) const
+{
+    return serial_backend_name();
 }
 
 void Serial::print(const char *fmt, ...) const

@@ -2,6 +2,8 @@
 
 **A small C++ framework on top of ESP-IDF 6.0 built for short code, direct hardware work, and fast comprehension by humans and LLMs.**
 
+**Originally created by Rodrigo Lange CWB/BRAZIL**
+
 `esp32libfun` exists to make ESP-IDF projects feel lighter without hiding the SDK.
 It keeps the core small, builds reusable `esp_*` libraries on top of it, and
 favors APIs that are easy to scan, easy to type, and easy to extend.
@@ -50,6 +52,7 @@ extern "C" void app_main(void)
 The core stays thin and direct:
 
 - `serial` gives fast textual feedback
+- `serial` follows the ESP-IDF console backend and works especially well with USB Serial/JTAG on C3/S3/C6/H2 targets
 - `gpio` stays close to the hardware
 - `delay` keeps simple loops readable
 
@@ -136,6 +139,11 @@ main/                          -> fast iteration and hardware validation
 
 Use VS Code with the ESP-IDF extension.
 
+On ESP32-C3, ESP32-S3, ESP32-C6, and similar chips with native USB, prefer the
+ESP-IDF console backend `USB Serial/JTAG`. It removes the need for an external
+USB-UART adapter and usually gives the best first-run experience with
+`esp32libfun`.
+
 Clone the repository and open it in VS Code:
 
 ```bash
@@ -158,3 +166,30 @@ Planned additions for this section:
 - the exact build / flash / monitor commands
 - the shortest possible first-run path
 - a pointer to `docs/examples/` and `esp_component_template`
+
+Console notes:
+
+- `esp32libfun_serial` uses the ESP-IDF console backend selected by the build
+- for native-USB targets, USB Serial/JTAG is the preferred path
+- if the monitor shows boot output but you cannot interact, check the selected console backend first
+
+## Contributing
+
+Contributions are welcome.
+
+Good contribution paths:
+
+- open an issue when you find a bug, unclear behavior, or missing documentation
+- open a pull request when you already have a concrete change to propose
+- keep the core small and stable
+- prefer new `esp_*` libraries in `framework/libs/` when adding device behavior
+
+Before opening a PR, read:
+
+- `docs/architecture.md`
+- `docs/style-guide.md`
+- `docs/vibe_coding.md`
+
+If you want to create a new library, start from:
+
+- `framework/libs/esp_component_template`
