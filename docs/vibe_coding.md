@@ -36,10 +36,14 @@ Important rules:
 - prefer short, readable wrappers
 - do not invent large subsystems without strong justification
 - preserve the naming and structure already present in the repo
+- check the existing core modules and libraries before creating new code
+- reuse an existing library as a behavioral reference when the transport matches
 - ESP-IDF 6.0 is the baseline
 - no exceptions
 - no RTTI
 - avoid heap in the core
+- do not edit `sdkconfig` as the first choice
+- prefer `sdkconfig.defaults` when changing repository defaults
 
 ## Prompt Template: Create An Application
 
@@ -68,6 +72,8 @@ Architecture rules:
 - use `esp_*` when device behavior deserves its own library
 - `esp_*` must not depend on the `esp32libfun` aggregator as a required dependency
 - for predictable behavior, prefer manual control before hidden automation
+- before adding code, inspect the existing core modules and prefer reusing them
+- do not patch `sdkconfig` unless the task explicitly requires a local machine-specific change
 
 Task:
 [describe the application here]
@@ -110,6 +116,7 @@ Before proposing or editing code, read these files:
 - framework/libs/esp_component_template/README.md
 - framework/libs/esp_component_template/include/esp_component_template.hpp
 - framework/libs/esp_component_template/esp_component_template.cpp
+- at least one existing library that uses the same transport or runtime pattern
 
 Project model:
 - `framework/core/esp32libfun_*` = thin core modules over ESP-IDF
@@ -119,13 +126,16 @@ Project model:
 
 Rules for the new library:
 - start from `esp_component_template`
+- inspect an existing library that uses the same core dependency before designing transport ownership
 - rename namespace, class, header, source, callback alias, and global object correctly
 - keep the public header small and documented with Doxygen comments
 - depend only on the specific core modules that the library actually uses
 - do not depend on the `esp32libfun` aggregator as a required dependency
+- do not make the library own shared transports unless the existing project pattern already does that
 - if the library has manual and managed modes, prefer `init()/start()/stop()/end()`
 - if managed runtime does not help, keep the API direct and pragmatic
 - AT support must stay optional
+- do not edit `sdkconfig` as part of normal library creation
 
 New library:
 - name: [example: esp_bmp280]
