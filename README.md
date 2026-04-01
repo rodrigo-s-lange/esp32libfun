@@ -28,9 +28,13 @@ constexpr int kLedPin = 8;
 
 extern "C" void app_main(void)
 {
+    // Convenience bootstrap for the enabled core modules.
     esp32libfun_init();
 
+    // Fast serial feedback from the core.
     serial.println(C "Hello from Libfun! Version: %s", ESP32LIBFUN_VERSION);
+
+    // Thin GPIO wrapper over ESP-IDF.
     gpio.cfg(kLedPin, OUTPUT);
 
     while (true) {
@@ -53,6 +57,7 @@ On top of that, `esp_*` libraries add reusable behavior without forcing a giant 
 #include "esp32libfun.hpp"
 #include "esp_button.hpp"
 
+// Event callback fired when the button confirms a click.
 static void onButtonClick(Button &instance)
 {
     serial.println(O "Button click on GPIO " C "%d", instance.pin());
@@ -62,10 +67,14 @@ extern "C" void app_main(void)
 {
     esp32libfun_init();
 
+    // Configure one button in manual mode.
     button.init(9, BUTTON_INPUT_PULLUP, true);
+
+    // Register one callback for the CLICK event.
     button.onClick(onButtonClick);
 
     while (true) {
+        // Advance the button state machine explicitly.
         button.loop();
         delay.ms(5);
     }
@@ -78,6 +87,7 @@ The same library can also opt into a managed task when convenience matters more 
 #include "esp32libfun.hpp"
 #include "esp_button.hpp"
 
+// Same callback as the manual example.
 static void onButtonClick(Button &instance)
 {
     serial.println(O "Button click on GPIO " C "%d", instance.pin());
@@ -87,11 +97,15 @@ extern "C" void app_main(void)
 {
     esp32libfun_init();
 
+    // init() keeps the library predictable and ready.
     button.init(9, BUTTON_INPUT_PULLUP, true);
     button.onClick(onButtonClick);
+
+    // start() enables the optional managed task.
     button.start();
 
     while (true) {
+        // The button task is running in the background now.
         delay.s(1);
     }
 }
