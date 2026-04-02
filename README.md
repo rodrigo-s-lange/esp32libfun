@@ -194,7 +194,9 @@ If you want to create a new library, start from:
 
 - `framework/libs/esp_component_template`
 
-## License is licensed under MIT. See [LICENSE](LICENSE) for details.
+## License
+- Licensed under MIT. 
+- See [LICENSE](LICENSE) for details.
 
 ## Core Features
 
@@ -208,6 +210,7 @@ If you want to create a new library, start from:
 - `esp32libfun_pcnt`: thin wrapper over ESP-IDF PCNT APIs for pulse counting
 - `esp32libfun_serial`: fast formatted output with the ESP-IDF console backend
 - `esp32libfun_spi`: thin wrapper over ESP-IDF SPI APIs
+- `esp32libfun_w5500`: dedicated SPI Ethernet wrapper over ESP-IDF `esp_eth` and the official W5500 driver
 - `esp32libfun_wifi_ap`: basic Wi-Fi access point mode management with event callbacks
 - `esp32libfun_webserver`: simple HTTP server with route handling and static file serving
 - `esp32libfun_wifi_sta`: basic Wi-Fi station mode management with event callbacks

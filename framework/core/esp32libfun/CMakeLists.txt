@@ -46,6 +46,13 @@ if(CONFIG_ESP32LIBFUN_SPI)
     list(APPEND priv_requires esp32libfun_spi)
 endif()
 
+if(CONFIG_ESP32LIBFUN_W5500)
+    list(APPEND requires esp32libfun_w5500)
+    list(APPEND requires esp_eth)
+    list(APPEND requires esp_netif)
+    list(APPEND priv_requires esp32libfun_w5500)
+endif()
+
 if(CONFIG_ESP32LIBFUN_MCPWM)
     list(APPEND requires esp32libfun_mcpwm)
     list(APPEND requires esp_driver_mcpwm)

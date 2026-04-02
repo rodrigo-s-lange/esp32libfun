@@ -170,7 +170,7 @@ esp_err_t Mcpwm::begin(int pin, uint32_t freq_hz, float duty_percent, int group,
 
     mcpwm_timer_config_t timer_cfg = {};
     timer_cfg.group_id = group;
-    timer_cfg.clk_src = GPTIMER_CLK_SRC_DEFAULT;
+    timer_cfg.clk_src = MCPWM_TIMER_CLK_SRC_DEFAULT;
     timer_cfg.resolution_hz = resolution_hz;
     timer_cfg.count_mode = MCPWM_TIMER_COUNT_MODE_UP;
     timer_cfg.period_ticks = period_ticks;

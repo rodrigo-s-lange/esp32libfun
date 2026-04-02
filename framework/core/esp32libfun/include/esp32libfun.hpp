@@ -39,6 +39,10 @@
 #include "../../esp32libfun_spi/include/esp32libfun_spi.hpp"
 #endif
 
+#if CONFIG_ESP32LIBFUN_W5500
+#include "../../esp32libfun_w5500/include/esp32libfun_w5500.hpp"
+#endif
+
 #if CONFIG_ESP32LIBFUN_MCPWM
 #include "../../esp32libfun_mcpwm/include/esp32libfun_mcpwm.hpp"
 #endif

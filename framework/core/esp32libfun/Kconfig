@@ -64,6 +64,14 @@ menu "ESP32LIBFUN"
         help
             Builds and exposes esp32libfun_spi.
 
+    config ESP32LIBFUN_W5500
+        bool "Enable W5500 Ethernet module"
+        default n
+        help
+            Builds and exposes esp32libfun_w5500.
+            This module owns one dedicated SPI bus for the W5500 and wraps the
+            official ESP-IDF Ethernet driver.
+
     config ESP32LIBFUN_MCPWM
         bool "Enable MCPWM module"
         default y
