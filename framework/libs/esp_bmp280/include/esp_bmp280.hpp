@@ -7,21 +7,25 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
-namespace esp_si7021 {
+namespace esp_bmp280 {
 
-class Si7021;
+class Bmp280;
 
-using si7021_callback_t = void (*)(Si7021 &instance);
+using bmp280_callback_t = void (*)(Bmp280 &instance);
 
-/// Driver for the Si7021 temperature and humidity sensor.
+/// Driver for the BMP280 temperature and pressure sensor.
 ///
 /// The library attaches to an I2C bus already started with `i2c.begin()`.
 /// After `init()`, the component can run in manual mode through `read()` /
 /// `loop()`, or in managed mode through the optional `start()` task.
-class Si7021 {
+class Bmp280 {
 public:
-    /// Fixed 7-bit I2C address used by every Si7021 device.
-    static constexpr uint16_t DEFAULT_ADDRESS = 0x40;
+    /// Default I2C address when SDO is pulled low.
+    static constexpr uint16_t DEFAULT_ADDRESS = 0x76;
+    /// Alternate I2C address when SDO is pulled high.
+    static constexpr uint16_t ALTERNATE_ADDRESS = 0x77;
+    /// Expected chip ID value read from register `0xD0`.
+    static constexpr uint8_t CHIP_ID = 0x58;
     /// Default read period used by `loop()` and `start()`.
     static constexpr uint32_t DEFAULT_INTERVAL_MS = 2000;
     /// Stack size in FreeRTOS stack words for the optional managed task.
@@ -33,7 +37,7 @@ public:
 
     /// Attaches the sensor to an I2C bus already started with `i2c.begin()`.
     ///
-    /// @param address Fixed 7-bit I2C address. Must be `DEFAULT_ADDRESS`.
+    /// @param address 7-bit I2C address. Must be `DEFAULT_ADDRESS` or `ALTERNATE_ADDRESS`.
     /// @param port I2C port index matching the previous `i2c.begin()` call.
     /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure.
     esp_err_t init(uint16_t address = DEFAULT_ADDRESS, int port = 0);
@@ -70,23 +74,16 @@ public:
     /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure.
     esp_err_t loop(void);
 
-    /// Reads humidity first, then temperature from the last humidity conversion.
-    ///
-    /// Updates `humidity()` and `temperature()` on success.
+    /// Triggers one forced-mode conversion and updates temperature and pressure.
     ///
     /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure.
     esp_err_t read(void);
-
-    /// Sends a soft reset and waits for the sensor to become ready again.
-    ///
-    /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure.
-    esp_err_t reset(void);
 
     /// Registers a callback fired after each successful acquisition.
     ///
     /// @param callback Callback pointer, or `nullptr` to clear it.
     /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure.
-    esp_err_t onRead(si7021_callback_t callback);
+    esp_err_t onRead(bmp280_callback_t callback);
 
     /// Updates the default read period used by `loop()` and `start()`.
     ///
@@ -96,8 +93,8 @@ public:
 
     /// Returns the last temperature in degrees Celsius.
     [[nodiscard]] float temperature(void) const;
-    /// Returns the last relative humidity in percent.
-    [[nodiscard]] float humidity(void) const;
+    /// Returns the last pressure in hectopascals.
+    [[nodiscard]] float pressure(void) const;
     /// Returns the configured 7-bit I2C address.
     [[nodiscard]] uint16_t address(void) const;
     /// Returns the configured I2C port index.
@@ -106,15 +103,31 @@ public:
     [[nodiscard]] uint32_t intervalMs(void) const;
 
 private:
+    struct Calib {
+        uint16_t T1;
+        int16_t T2;
+        int16_t T3;
+        uint16_t P1;
+        int16_t P2;
+        int16_t P3;
+        int16_t P4;
+        int16_t P5;
+        int16_t P6;
+        int16_t P7;
+        int16_t P8;
+        int16_t P9;
+    };
+
     static void taskEntry(void *arg);
     static bool isValidAddress(uint16_t address);
+    static float compensateTemperature(int32_t adc_t, const Calib &calib, int32_t *t_fine);
+    static float compensatePressure(int32_t adc_p, const Calib &calib, int32_t t_fine);
 
     esp_err_t ensureMutex(void);
     bool lock(void) const;
     void unlock(void) const;
     void step(void);
-    esp_err_t measureRH(float *humidity_pct);
-    esp_err_t readTempFromLastRH(float *temperature_c);
+    esp_err_t readCalib(void);
     void resetState(void);
 
     bool configured_ = false;
@@ -123,8 +136,9 @@ private:
     uint16_t address_ = DEFAULT_ADDRESS;
     int port_ = 0;
     float temperature_ = 0.0f;
-    float humidity_ = 0.0f;
-    si7021_callback_t callback_ = nullptr;
+    float pressure_ = 0.0f;
+    Calib calib_ = {};
+    bmp280_callback_t callback_ = nullptr;
 
     SemaphoreHandle_t mutex_ = nullptr;
     StaticSemaphore_t mutex_storage_ {};
@@ -133,10 +147,10 @@ private:
     StackType_t task_stack_[DEFAULT_TASK_STACK_WORDS] = {};
 };
 
-extern Si7021 si7021;
+extern Bmp280 bmp280;
 
-} // namespace esp_si7021
+} // namespace esp_bmp280
 
-using esp_si7021::Si7021;
-using esp_si7021::si7021;
-using esp_si7021::si7021_callback_t;
+using esp_bmp280::Bmp280;
+using esp_bmp280::bmp280;
+using esp_bmp280::bmp280_callback_t;

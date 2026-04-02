@@ -39,11 +39,37 @@ menu "ESP32LIBFUN"
         help
             Builds and exposes esp32libfun_gpio.
 
+    config ESP32LIBFUN_LEDC
+        bool "Enable LEDC PWM module"
+        default y
+        help
+            Builds and exposes esp32libfun_ledc.
+
     config ESP32LIBFUN_I2C
         bool "Enable I2C module"
         default y
         help
             Builds and exposes esp32libfun_i2c.
+
+    config ESP32LIBFUN_PCNT
+        bool "Enable pulse counter module"
+        default y
+        depends on SOC_PCNT_SUPPORTED
+        help
+            Builds and exposes esp32libfun_pcnt.
+
+    config ESP32LIBFUN_SPI
+        bool "Enable SPI module"
+        default y
+        help
+            Builds and exposes esp32libfun_spi.
+
+    config ESP32LIBFUN_MCPWM
+        bool "Enable MCPWM module"
+        default y
+        depends on SOC_MCPWM_SUPPORTED
+        help
+            Builds and exposes esp32libfun_mcpwm.
 
     config ESP32LIBFUN_WIFI_STA
         bool "Enable Wi-Fi STA module"

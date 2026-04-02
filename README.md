@@ -193,3 +193,31 @@ Before opening a PR, read:
 If you want to create a new library, start from:
 
 - `framework/libs/esp_component_template`
+
+## License is licensed under MIT. See [LICENSE](LICENSE) for details.
+
+## Core Features
+
+- `esp32libfun`: core module with basic types, macros, and utilities. Convenience bootstrap with `esp32libfun_init()`.
+- `esp32libfun_at`: basic AT command parser for simple text-based protocols and colorful console commands
+- `esp32libfun_delay`: simple delay functions for readable loops
+- `esp32libfun_gpio`: thin wrapper over ESP-IDF GPIO APIs
+- `esp32libfun_i2c`: thin wrapper over ESP-IDF I2C APIs
+- `esp32libfun_ledc`: thin wrapper over ESP-IDF LEDC APIs for PWM and fades
+- `esp32libfun_mcpwm`: thin wrapper over ESP-IDF MCPWM APIs for servo and pulse generation
+- `esp32libfun_pcnt`: thin wrapper over ESP-IDF PCNT APIs for pulse counting
+- `esp32libfun_serial`: fast formatted output with the ESP-IDF console backend
+- `esp32libfun_spi`: thin wrapper over ESP-IDF SPI APIs
+- `esp32libfun_wifi_ap`: basic Wi-Fi access point mode management with event callbacks
+- `esp32libfun_webserver`: simple HTTP server with route handling and static file serving
+- `esp32libfun_wifi_sta`: basic Wi-Fi station mode management with event callbacks
+
+## Library Features
+
+- `esp_component_template`: starting point for new libraries, with a simple API and optional managed task
+- `esp_button`: button handling with debouncing and click/double-click/hold event detection
+- `esp_pca9685`: driver for the PCA9685 16-channel PWM controller, with support for servo control and LED dimming
+- `esp_bmp280`: driver for the BMP280 temperature and pressure sensor, with I2C communication and reading functions
+- `esp_si7021`: driver for the Si7021 temperature and humidity sensor, with I2C communication and reading functions
+- `esp_ssd1306`: monochrome OLED library with framebuffer, text, progress bar, and dashboard helpers
+- `esp_st7789v2`: RGB565 TFT library with drawing primitives, text, widgets, and partial region updates

@@ -3,6 +3,7 @@
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/portmacro.h"
 #include "freertos/semphr.h"
 
 #include "esp_log.h"
@@ -60,7 +61,9 @@ private:
 
 BusState s_buses[I2c::MAX_BUSES] = {};
 DeviceState s_devices[I2c::MAX_DEVICES] = {};
+StaticSemaphore_t s_i2c_mutex_storage = {};
 SemaphoreHandle_t s_i2c_mutex = nullptr;
+portMUX_TYPE s_i2c_sync_lock = portMUX_INITIALIZER_UNLOCKED;
 
 i2c_addr_bit_len_t toAddrLength(int addr_bits)
 {
@@ -71,11 +74,14 @@ i2c_addr_bit_len_t toAddrLength(int addr_bits)
 
 esp_err_t I2c::ensureSyncPrimitives(void)
 {
+    portENTER_CRITICAL(&s_i2c_sync_lock);
     if (s_i2c_mutex == nullptr) {
-        s_i2c_mutex = xSemaphoreCreateMutex();
-        if (s_i2c_mutex == nullptr) {
-            return ESP_ERR_NO_MEM;
-        }
+        s_i2c_mutex = xSemaphoreCreateMutexStatic(&s_i2c_mutex_storage);
+    }
+    portEXIT_CRITICAL(&s_i2c_sync_lock);
+
+    if (s_i2c_mutex == nullptr) {
+        return ESP_ERR_NO_MEM;
     }
 
     return ESP_OK;

@@ -59,6 +59,9 @@ Core examples:
 - `esp32libfun_gpio`
 - `esp32libfun_serial`
 - `esp32libfun_i2c`
+- `esp32libfun_ledc`
+- `esp32libfun_pcnt`
+- `esp32libfun_mcpwm`
 
 Higher-level example:
 
@@ -180,6 +183,25 @@ Good patterns:
 - `end()` releases resources
 - `ready()` reports availability
 - `read()` and `write()` perform the expected transport action directly
+
+For shared core resources, internal synchronization is part of the contract.
+
+That means:
+
+- global core objects such as `serial`, `i2c`, and `gpio` must protect their own shared state
+- a component must not assume it is the only task or the only core touching a shared resource
+- output streams, bus registries, shadow state, and similar mutable internals must be serialized by the owner component
+- higher-level libraries may protect their own state, but they should not be forced to fix missing synchronization in the core
+
+When the ESP-IDF feature already exists as a core capability, reuse it instead
+of hiding it behind an unrelated module.
+
+Examples:
+
+- use `esp32libfun_gpio` for digital IO and interrupts
+- use `esp32libfun_ledc` for general PWM
+- use `esp32libfun_pcnt` for pulse counting
+- use `esp32libfun_mcpwm` for dedicated motor/control PWM
 
 For libraries in `framework/libs/esp_*` with optional runtime automation, use
 this contract:

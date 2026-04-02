@@ -23,8 +23,24 @@
 #include "../../esp32libfun_gpio/include/esp32libfun_gpio.hpp"
 #endif
 
+#if CONFIG_ESP32LIBFUN_LEDC
+#include "../../esp32libfun_ledc/include/esp32libfun_ledc.hpp"
+#endif
+
 #if CONFIG_ESP32LIBFUN_I2C
 #include "../../esp32libfun_i2c/include/esp32libfun_i2c.hpp"
+#endif
+
+#if CONFIG_ESP32LIBFUN_PCNT
+#include "../../esp32libfun_pcnt/include/esp32libfun_pcnt.hpp"
+#endif
+
+#if CONFIG_ESP32LIBFUN_SPI
+#include "../../esp32libfun_spi/include/esp32libfun_spi.hpp"
+#endif
+
+#if CONFIG_ESP32LIBFUN_MCPWM
+#include "../../esp32libfun_mcpwm/include/esp32libfun_mcpwm.hpp"
 #endif
 
 #if CONFIG_ESP32LIBFUN_WIFI_STA

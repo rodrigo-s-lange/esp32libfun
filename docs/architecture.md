@@ -74,9 +74,22 @@ Typical core responsibilities:
 
 - serial
 - gpio
+- ledc
+- pcnt
+- mcpwm
 - delay
 - i2c
 - other transport or system-facing layers that many libraries depend on
+
+Practical split inside the core:
+
+- `esp32libfun_gpio` owns direct digital IO, level reads/writes, and simple pin interrupts
+- `esp32libfun_ledc` owns general-purpose PWM output
+- `esp32libfun_pcnt` owns low-level pulse counting
+- `esp32libfun_mcpwm` owns dedicated motor/control PWM use cases
+
+This keeps `gpio` readable and avoids one giant module that mixes unrelated
+hardware blocks under one name.
 
 The convenience component `esp32libfun` is the public entry point for the base
 framework. It should:

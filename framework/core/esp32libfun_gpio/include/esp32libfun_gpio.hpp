@@ -12,6 +12,15 @@ constexpr int INPUT_OUTPUT           = 4;
 constexpr int INPUT_OUTPUT_OPENDRAIN = 5;
 constexpr int OUTPUT_OPENDRAIN       = 6;
 
+constexpr int GPIO_IRQ_DISABLE    = 0;
+constexpr int GPIO_IRQ_RISING     = 1;
+constexpr int GPIO_IRQ_FALLING    = 2;
+constexpr int GPIO_IRQ_CHANGE     = 3;
+constexpr int GPIO_IRQ_LOW_LEVEL  = 4;
+constexpr int GPIO_IRQ_HIGH_LEVEL = 5;
+
+using gpio_callback_t = void (*)(int pin, bool level, void *user_ctx);
+
 class Gpio {
 public:
     static constexpr bool HIGH = true;
@@ -29,8 +38,18 @@ public:
     // Falls back to read(pin) when no shadow state is available.
     [[nodiscard]] bool state(int pin) const;
     esp_err_t toggle(int pin) const;
+    /// Registers one simple GPIO interrupt callback.
+    ///
+    /// The callback runs in a small background task owned by the GPIO module,
+    /// not directly inside the ISR. This keeps the common usage path simple
+    /// and makes it safe to call regular framework APIs from the callback.
+    esp_err_t irq(int pin, int type, gpio_callback_t callback, void *user_ctx = nullptr) const;
+    /// Disables and unregisters one GPIO interrupt callback.
+    esp_err_t irqOff(int pin) const;
 
 private:
+    static esp_err_t ensureSyncPrimitives(void);
+    static esp_err_t ensureInterruptRuntime(void);
     static bool isValidPin(int pin);
     static bool usesOutputShadow(int direction);
     static esp_err_t applyConfig(int pin, int direction);
@@ -48,3 +67,10 @@ using esp32libfun::OUTPUT;
 using esp32libfun::INPUT_OUTPUT;
 using esp32libfun::INPUT_OUTPUT_OPENDRAIN;
 using esp32libfun::OUTPUT_OPENDRAIN;
+using esp32libfun::GPIO_IRQ_DISABLE;
+using esp32libfun::GPIO_IRQ_RISING;
+using esp32libfun::GPIO_IRQ_FALLING;
+using esp32libfun::GPIO_IRQ_CHANGE;
+using esp32libfun::GPIO_IRQ_LOW_LEVEL;
+using esp32libfun::GPIO_IRQ_HIGH_LEVEL;
+using esp32libfun::gpio_callback_t;

@@ -38,12 +38,16 @@ Important rules:
 - preserve the naming and structure already present in the repo
 - check the existing core modules and libraries before creating new code
 - reuse an existing library as a behavioral reference when the transport matches
+- treat shared resources as concurrent by default
+- expect multiple tasks or cores to touch global wrappers unless the code clearly proves otherwise
 - ESP-IDF 6.0 is the baseline
 - no exceptions
 - no RTTI
 - avoid heap in the core
 - do not edit `sdkconfig` as the first choice
 - prefer `sdkconfig.defaults` when changing repository defaults
+- shared state and shared hardware access must be serialized by the component that owns them
+- before adding GPIO-adjacent code, check whether `esp32libfun_gpio`, `esp32libfun_ledc`, `esp32libfun_pcnt`, or `esp32libfun_mcpwm` already solve the problem
 
 ## Prompt Template: Create An Application
 
@@ -74,6 +78,7 @@ Architecture rules:
 - for predictable behavior, prefer manual control before hidden automation
 - before adding code, inspect the existing core modules and prefer reusing them
 - do not patch `sdkconfig` unless the task explicitly requires a local machine-specific change
+- when the code touches shared state or global wrappers, preserve or add internal synchronization instead of assuming single-threaded use
 
 Task:
 [describe the application here]
@@ -132,6 +137,8 @@ Rules for the new library:
 - depend only on the specific core modules that the library actually uses
 - do not depend on the `esp32libfun` aggregator as a required dependency
 - do not make the library own shared transports unless the existing project pattern already does that
+- if the library keeps mutable state or exposes an optional task, protect that state explicitly
+- treat callbacks and background tasks as concurrent access paths unless proven otherwise
 - if the library has manual and managed modes, prefer `init()/start()/stop()/end()`
 - if managed runtime does not help, keep the API direct and pragmatic
 - AT support must stay optional

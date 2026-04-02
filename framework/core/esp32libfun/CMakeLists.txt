@@ -24,9 +24,32 @@ if(CONFIG_ESP32LIBFUN_GPIO)
     list(APPEND priv_requires esp32libfun_gpio)
 endif()
 
+if(CONFIG_ESP32LIBFUN_LEDC)
+    list(APPEND requires esp32libfun_ledc)
+    list(APPEND requires esp_driver_ledc)
+    list(APPEND priv_requires esp32libfun_ledc)
+endif()
+
 if(CONFIG_ESP32LIBFUN_I2C)
     list(APPEND requires esp32libfun_i2c)
     list(APPEND priv_requires esp32libfun_i2c)
+endif()
+
+if(CONFIG_ESP32LIBFUN_PCNT)
+    list(APPEND requires esp32libfun_pcnt)
+    list(APPEND requires esp_driver_pcnt)
+    list(APPEND priv_requires esp32libfun_pcnt)
+endif()
+
+if(CONFIG_ESP32LIBFUN_SPI)
+    list(APPEND requires esp32libfun_spi)
+    list(APPEND priv_requires esp32libfun_spi)
+endif()
+
+if(CONFIG_ESP32LIBFUN_MCPWM)
+    list(APPEND requires esp32libfun_mcpwm)
+    list(APPEND requires esp_driver_mcpwm)
+    list(APPEND priv_requires esp32libfun_mcpwm)
 endif()
 
 if(CONFIG_ESP32LIBFUN_WIFI_STA)
