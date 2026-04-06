@@ -1,0 +1,85 @@
+set(srcs "esp32libfun.cpp")
+set(requires)
+set(priv_requires)
+set(include_dirs "include")
+
+if(CONFIG_ESP32LIBFUN_SERIAL)
+    list(APPEND requires esp32libfun_serial)
+    list(APPEND priv_requires esp32libfun_serial)
+endif()
+
+if(CONFIG_ESP32LIBFUN_AT)
+    list(APPEND requires esp32libfun_at)
+    list(APPEND priv_requires esp32libfun_at)
+endif()
+
+if(CONFIG_ESP32LIBFUN_DELAY)
+    list(APPEND requires esp32libfun_delay)
+    list(APPEND priv_requires esp32libfun_delay)
+endif()
+
+if(CONFIG_ESP32LIBFUN_GPIO)
+    list(APPEND requires esp32libfun_gpio)
+    list(APPEND requires esp_driver_gpio)
+    list(APPEND priv_requires esp32libfun_gpio)
+endif()
+
+if(CONFIG_ESP32LIBFUN_LEDC)
+    list(APPEND requires esp32libfun_ledc)
+    list(APPEND requires esp_driver_ledc)
+    list(APPEND priv_requires esp32libfun_ledc)
+endif()
+
+if(CONFIG_ESP32LIBFUN_I2C)
+    list(APPEND requires esp32libfun_i2c)
+    list(APPEND priv_requires esp32libfun_i2c)
+endif()
+
+if(CONFIG_ESP32LIBFUN_PCNT)
+    list(APPEND requires esp32libfun_pcnt)
+    list(APPEND requires esp_driver_pcnt)
+    list(APPEND priv_requires esp32libfun_pcnt)
+endif()
+
+if(CONFIG_ESP32LIBFUN_SPI)
+    list(APPEND requires esp32libfun_spi)
+    list(APPEND priv_requires esp32libfun_spi)
+endif()
+
+if(CONFIG_ESP32LIBFUN_W5500)
+    list(APPEND requires esp32libfun_w5500)
+    list(APPEND requires esp_eth)
+    list(APPEND requires esp_netif)
+    list(APPEND priv_requires esp32libfun_w5500)
+endif()
+
+if(CONFIG_ESP32LIBFUN_LAN8720)
+    list(APPEND requires esp32libfun_lan8720)
+    list(APPEND requires esp_eth)
+    list(APPEND requires esp_netif)
+    list(APPEND priv_requires esp32libfun_lan8720)
+endif()
+
+if(CONFIG_ESP32LIBFUN_MCPWM)
+    list(APPEND requires esp32libfun_mcpwm)
+    list(APPEND requires esp_driver_mcpwm)
+    list(APPEND priv_requires esp32libfun_mcpwm)
+endif()
+
+if(CONFIG_ESP32LIBFUN_WIFI_STA)
+    list(APPEND requires esp32libfun_wifi_sta)
+    list(APPEND priv_requires esp32libfun_wifi_sta)
+endif()
+
+if(CONFIG_ESP32LIBFUN_WEBSERVER)
+    list(APPEND requires esp32libfun_webserver)
+    list(APPEND requires esp_http_server)
+    list(APPEND priv_requires esp32libfun_webserver)
+endif()
+
+idf_component_register(
+    SRCS ${srcs}
+    INCLUDE_DIRS ${include_dirs}
+    PRIV_REQUIRES ${priv_requires}
+    REQUIRES ${requires}
+)

@@ -1,0 +1,74 @@
+menu "ESP32LIBFUN"
+
+    comment "For ESP32-C3/S3/C6/H2 boards with native USB, prefer ESP-IDF console = USB Serial/JTAG"
+
+    config ESP32LIBFUN_SERIAL
+        bool "Enable serial module"
+        default y
+        help
+            Builds and exposes esp32libfun_serial.
+            On targets with native USB, the recommended ESP-IDF console backend
+            is USB Serial/JTAG because it avoids external USB-UART adapters and
+            usually gives the smoothest first-run experience.
+
+    config ESP32LIBFUN_AT
+        bool "Enable AT console module"
+        default y
+        depends on ESP32LIBFUN_SERIAL
+        help
+            Builds and exposes esp32libfun_at.
+            The AT console is initialized and started from esp32libfun_init().
+
+    config ESP32LIBFUN_AT_MAX_CMDS
+        int "Maximum AT commands"
+        default 48
+        depends on ESP32LIBFUN_AT
+        range 1 128
+        help
+            Fixed-size AT registry capacity used by self-registering and manual commands.
+
+    config ESP32LIBFUN_DELAY
+        bool "Enable delay module"
+        default y
+        help
+            Builds and exposes esp32libfun_delay.
+
+    config ESP32LIBFUN_GPIO
+        bool "Enable GPIO module"
+        default y
+        help
+            Builds and exposes esp32libfun_gpio.
+
+    config ESP32LIBFUN_LEDC
+        bool "Enable LEDC PWM module"
+        default y
+        help
+            Builds and exposes esp32libfun_ledc.
+
+    config ESP32LIBFUN_I2C
+        bool "Enable I2C module"
+        default y
+        help
+            Builds and exposes esp32libfun_i2c.
+
+    config ESP32LIBFUN_PCNT
+        bool "Enable pulse counter module"
+        default y
+        depends on SOC_PCNT_SUPPORTED
+        help
+            Builds and exposes esp32libfun_pcnt.
+
+    config ESP32LIBFUN_SPI
+        bool "Enable SPI module"
+        default y
+        help
+            Builds and exposes esp32libfun_spi.
+
+    config ESP32LIBFUN_MCPWM
+        bool "Enable MCPWM module"
+        default y
+        depends on SOC_MCPWM_SUPPORTED
+        help
+            Builds and exposes esp32libfun_mcpwm.
+
+endmenu

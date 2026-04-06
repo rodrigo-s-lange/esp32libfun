@@ -1,0 +1,76 @@
+#pragma once
+
+#include "esp_err.h"
+
+namespace esp32libfun {
+
+constexpr int INPUT                  = 0;
+constexpr int INPUT_PULLUP           = 1;
+constexpr int INPUT_PULLDOWN         = 2;
+constexpr int OUTPUT                 = 3;
+constexpr int INPUT_OUTPUT           = 4;
+constexpr int INPUT_OUTPUT_OPENDRAIN = 5;
+constexpr int OUTPUT_OPENDRAIN       = 6;
+
+constexpr int GPIO_IRQ_DISABLE    = 0;
+constexpr int GPIO_IRQ_RISING     = 1;
+constexpr int GPIO_IRQ_FALLING    = 2;
+constexpr int GPIO_IRQ_CHANGE     = 3;
+constexpr int GPIO_IRQ_LOW_LEVEL  = 4;
+constexpr int GPIO_IRQ_HIGH_LEVEL = 5;
+
+using gpio_callback_t = void (*)(int pin, bool level, void *user_ctx);
+
+class Gpio {
+public:
+    static constexpr bool HIGH = true;
+    static constexpr bool LOW = false;
+
+    esp_err_t cfg(int pin, int direction) const;
+    esp_err_t write(int pin, bool level) const;
+    esp_err_t high(int pin) const;
+    esp_err_t low(int pin) const;
+    // Reads the electrical level currently seen on the pin.
+    // If the pin was configured as OUTPUT-only and you need the last logical value written by the library,
+    // prefer state(pin) or configure the pin as INPUT_OUTPUT.
+    [[nodiscard]] bool read(int pin) const;
+    // Returns the last logical level written by the library when tracked for an output-capable pin.
+    // Falls back to read(pin) when no shadow state is available.
+    [[nodiscard]] bool state(int pin) const;
+    esp_err_t toggle(int pin) const;
+    /// Registers one simple GPIO interrupt callback.
+    ///
+    /// The callback runs in a small background task owned by the GPIO module,
+    /// not directly inside the ISR. This keeps the common usage path simple
+    /// and makes it safe to call regular framework APIs from the callback.
+    esp_err_t irq(int pin, int type, gpio_callback_t callback, void *user_ctx = nullptr) const;
+    /// Disables and unregisters one GPIO interrupt callback.
+    esp_err_t irqOff(int pin) const;
+
+private:
+    static esp_err_t ensureSyncPrimitives(void);
+    static esp_err_t ensureInterruptRuntime(void);
+    static bool isValidPin(int pin);
+    static bool usesOutputShadow(int direction);
+    static esp_err_t applyConfig(int pin, int direction);
+};
+
+extern Gpio gpio;
+
+} // namespace esp32libfun
+
+using esp32libfun::gpio;
+using esp32libfun::INPUT;
+using esp32libfun::INPUT_PULLUP;
+using esp32libfun::INPUT_PULLDOWN;
+using esp32libfun::OUTPUT;
+using esp32libfun::INPUT_OUTPUT;
+using esp32libfun::INPUT_OUTPUT_OPENDRAIN;
+using esp32libfun::OUTPUT_OPENDRAIN;
+using esp32libfun::GPIO_IRQ_DISABLE;
+using esp32libfun::GPIO_IRQ_RISING;
+using esp32libfun::GPIO_IRQ_FALLING;
+using esp32libfun::GPIO_IRQ_CHANGE;
+using esp32libfun::GPIO_IRQ_LOW_LEVEL;
+using esp32libfun::GPIO_IRQ_HIGH_LEVEL;
+using esp32libfun::gpio_callback_t;
