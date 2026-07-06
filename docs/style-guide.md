@@ -46,7 +46,7 @@ This principle should lead to concrete choices:
 The project has two component families:
 
 - core modules in `framework/core/esp32libfun_xxx/`
-- device and higher-level libraries in `framework/libs/esp_xxx/`
+- device and higher-level libraries in separate `esp_xxx` repositories
 
 Dependency rule:
 
@@ -65,7 +65,7 @@ Core examples:
 
 Higher-level example:
 
-- `esp_pca9685`
+- `esp_example_sensor`
 
 ## 3. Naming Rules
 
@@ -74,9 +74,9 @@ Folder name, CMake target, and main public header should match.
 Examples:
 
 - `framework/core/esp32libfun_i2c/`
-- `framework/libs/esp_pca9685/`
+- external repo folder `esp_example_sensor/`
 - `include/esp32libfun_i2c.hpp`
-- `include/esp_pca9685.hpp`
+- `include/esp_example_sensor.hpp`
 
 When a global object helps readability, expose it in lowercase.
 
@@ -120,7 +120,7 @@ roles are different.
 Guideline:
 
 - `framework/core/esp32libfun_*` may keep pragmatic names that match the ESP-IDF concept closely
-- `framework/libs/esp_*` should prefer a more explicit and user-facing lifecycle when they own richer behavior
+- external `esp_*` libraries should prefer a more explicit and user-facing lifecycle when they own richer behavior
 
 ## 5. Human and LLM Friendly Code
 
@@ -203,7 +203,7 @@ Examples:
 - use `esp32libfun_pcnt` for pulse counting
 - use `esp32libfun_mcpwm` for dedicated motor/control PWM
 
-For libraries in `framework/libs/esp_*` with optional runtime automation, use
+For external `esp_*` libraries with optional runtime automation, use
 this contract:
 
 - `init(...)` configures the library in manual mode
@@ -253,7 +253,7 @@ Each component should define one fixed tag.
 Examples:
 
 - `ESP32LIBFUN_GPIO`
-- `ESP_PCA9685`
+- `ESP_EXAMPLE_SENSOR`
 
 Use standard ESP-IDF logging:
 

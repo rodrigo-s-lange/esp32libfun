@@ -53,18 +53,18 @@ This principle should appear in the structure of the codebase itself:
 
 The project is organized in layers with clear naming:
 
-- core modules use the `esp32libfun_*` prefix
-- device libraries and higher-level components use the `esp_*` prefix
+- core modules in this repository use the `esp32libfun_*` prefix
+- external device libraries and higher-level components use the `esp_*` prefix
 
 Examples:
 
 - core: `esp32libfun_serial`
 - core: `esp32libfun_i2c`
 - core: `esp32libfun_at`
-- device library: `esp_pca9685`
+- device library: `esp_example_sensor`
 
 This split keeps the framework core small and stable while allowing reusable
-device libraries to grow on top of it.
+device libraries to grow in their own repositories.
 
 ## Core Role
 
@@ -114,8 +114,10 @@ local to the device domain.
 
 Examples:
 
-- `esp_pca9685`
-- future sensor, actuator, display, and connectivity helpers
+- sensor helpers
+- actuator helpers
+- display helpers
+- connectivity helpers
 
 Each external library should feel native to the framework:
 
@@ -154,9 +156,8 @@ Good APIs in this project usually have these properties:
 
 The framework values predictable runtime behavior.
 
-Libraries in `framework/libs/esp_*` should work in a direct manual mode by
-default and may offer an optional managed runtime mode when that improves
-convenience.
+External `esp_*` libraries should work in a direct manual mode by default and
+may offer an optional managed runtime mode when that improves convenience.
 
 Preferred direction:
 

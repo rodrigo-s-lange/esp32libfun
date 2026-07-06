@@ -1,25 +1,36 @@
 # esp32libfun
 
-**A small C++ framework on top of ESP-IDF 6.0 built for short code, direct hardware work, and fast comprehension by humans and LLMs.**
+**A small C++ HAL-oriented framework on top of ESP-IDF 6.0 built for short code, direct hardware work, and fast comprehension by humans and LLMs.**
 
 **Originally created by Rodrigo Lange CWB/BRAZIL**
 
 `esp32libfun` exists to make ESP-IDF projects feel lighter without hiding the SDK.
-It keeps the core small, builds reusable `esp_*` libraries on top of it, and
-favors APIs that are easy to scan, easy to type, and easy to extend.
+This repository is the core HAL foundation: small `esp32libfun_*` components,
+focused examples, and documentation for reusable libraries built on top.
+
+The official workflow is native ESP-IDF. PlatformIO can be useful for some
+application projects, but this repository treats ESP-IDF CMake as the source of
+truth.
 
 ## Why It Exists
 
-- ESP-IDF is powerful, but common paths can become verbose
-- many embedded projects repeat the same transport and device setup
-- AI-assisted development works better when naming and structure are predictable
+- ESP-IDF is powerful, but common paths can become verbose.
+- Embedded projects repeat the same transport and base hardware setup.
+- AI-assisted development works better when naming and structure are predictable.
 
-## Why It Feels Different
+## Repository Scope
 
-- thin `esp32libfun_*` core modules instead of a giant monolith
-- `esp_*` libraries for devices and higher-level behavior
-- direct C++ APIs with low ceremony
-- readable enough for fast "vibe coding" without losing the ESP-IDF escape hatch
+This repository owns:
+
+- `framework/core/esp32libfun_*`: HAL core modules, thin over ESP-IDF.
+- `framework/libs/esp_component_template`: a local template for external `esp_*` libraries.
+- `docs/`: architecture, style, and core usage documentation.
+- `main/`: a small validation application.
+
+This repository does not own device libraries such as sensors, displays,
+keypads, actuators, or product-specific behavior. Those belong in separate
+`esp_*` repositories and should depend on the specific `esp32libfun_*` modules
+they use.
 
 ## The Idea In Code
 
@@ -30,87 +41,15 @@ constexpr int kLedPin = 8;
 
 extern "C" void app_main(void)
 {
-    // Convenience bootstrap for the enabled core modules.
     esp32libfun_init();
 
-    // Fast serial feedback from the core.
     serial.println(C "Hello from Libfun! Version: %s", ESP32LIBFUN_VERSION);
 
-    // Thin GPIO wrapper over ESP-IDF.
     gpio.cfg(kLedPin, OUTPUT);
 
     while (true) {
         gpio.toggle(kLedPin);
-        // C = cyan color macro, O = orange, W = white, etc.
         serial.println(O "LED on GPIO " C "%d", kLedPin);
-        // Short delay API keeps the common path compact.
-        delay.s(1);
-    }
-}
-```
-
-The core stays thin and direct:
-
-- `serial` gives fast textual feedback
-- `serial` follows the ESP-IDF console backend and works especially well with USB Serial/JTAG on C3/S3/C6/H2 targets
-- `gpio` stays close to the hardware
-- `delay` keeps simple loops readable
-
-On top of that, `esp_*` libraries add reusable behavior without forcing a giant framework:
-
-```cpp
-#include "esp32libfun.hpp"
-#include "esp_button.hpp"
-
-// Event callback fired when the button confirms a click.
-static void onButtonClick(Button &instance)
-{
-    serial.println(O "Button click on GPIO " C "%d", instance.pin());
-}
-
-extern "C" void app_main(void)
-{
-    esp32libfun_init();
-
-    // Configure one button in manual mode.
-    button.init(9, BUTTON_INPUT_PULLUP, true);
-
-    // Register one callback for the CLICK event.
-    button.onClick(onButtonClick);
-
-    while (true) {
-        // Advance the button state machine explicitly.
-        button.loop();
-        delay.ms(5);
-    }
-}
-```
-
-The same library can also opt into a managed task when convenience matters more than manual polling:
-
-```cpp
-#include "esp32libfun.hpp"
-#include "esp_button.hpp"
-
-// Same callback as the manual example.
-static void onButtonClick(Button &instance)
-{
-    serial.println(O "Button click on GPIO " C "%d", instance.pin());
-}
-
-extern "C" void app_main(void)
-{
-    esp32libfun_init();
-
-    // init() keeps the library predictable and ready.
-    button.init(9, BUTTON_INPUT_PULLUP, true);
-    button.onClick(onButtonClick);
-
-    // start() enables the optional managed task.
-    button.start();
-
-    while (true) {
-        // The button task is running in the background now.
         delay.s(1);
     }
 }
@@ -119,21 +58,12 @@ extern "C" void app_main(void)
 ## Mental Model
 
 ```text
-framework/core/esp32libfun_*   -> thin core modules over ESP-IDF
-framework/libs/esp_*           -> device and higher-level libraries
+framework/core/esp32libfun_*   -> HAL core modules, thin over ESP-IDF
 framework/libs/esp_component_template
-                               -> starting point for new esp_* libraries
-docs/examples/                 -> real usage examples
+                               -> template for external esp_* libraries
+docs/examples/                 -> core usage examples
 main/                          -> fast iteration and hardware validation
 ```
-
-## Project Shape
-
-`esp32libfun` is organized so a new reader can infer the structure quickly:
-
-- use the core directly when you want thin wrappers over ESP-IDF
-- use `esp_*` libraries when you want device-focused behavior on top of the core
-- use `esp_component_template` when creating a new library in the project style
 
 ## Get Started
 
@@ -152,97 +82,60 @@ cd esp32libfun
 code .
 ```
 
-Then follow the first-run flow:
-
-1. Install [ESP-IDF 6.0](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32s3/get-started/index.html) and the [VS Code ESP-IDF extension](https://marketplace.visualstudio.com/items?itemName=espressif.esp-idf-vscode-extension)
-2. Open the cloned repository in VS Code
-3. Set your target (`ESP32-S3` by default via `sdkconfig.defaults`)
-4. Select your serial port in the ESP-IDF extension status bar
-5. Click **Build** — this also generates `build/compile_commands.json` for clangd
-6. Click **Flash** and **Monitor** to see the output
-7. Start editing `main/main.cpp` or explore `docs/examples/`
-
-**Build, flash and monitor from the terminal:**
+Build, flash, and monitor from the terminal:
 
 ```bash
 idf.py build
 idf.py -p PORT flash monitor
 ```
 
-Replace `PORT` with your serial port (`COM5` on Windows, `/dev/ttyACM0` on Linux).
+Replace `PORT` with your serial port, such as `COM5` on Windows.
 
-**Changing the target:**
+Changing the target:
 
 ```bash
-idf.py set-target esp32s3   # or esp32, esp32c3, esp32c6, etc.
+idf.py set-target esp32s3
 idf.py build
 ```
 
-**IntelliSense and clangd:**
+## Configuration
 
-After the first `idf.py build`, the file `build/compile_commands.json` is generated.
-The included `.clangd` file points to it automatically — no manual configuration needed.
-If you see red underlines in VS Code before building, run the build once and then
-restart the clangd server (`Ctrl+Shift+P` → `clangd: Restart language server`).
-
-For examples beyond the minimal `main.cpp`, see `docs/examples/`.
-To create a new `esp_*` library, start from `framework/libs/esp_component_template`.
-
-**Console notes:**
-
-- `esp32libfun_serial` uses the ESP-IDF console backend selected by the build
-- for native-USB targets (S3, C3, C6, H2), USB Serial/JTAG is the preferred path — no external adapter needed
-- if the monitor shows boot output but you cannot interact, check the selected console backend in `sdkconfig`
-
-## Contributing
-
-Contributions are welcome.
-
-Good contribution paths:
-
-- open an issue when you find a bug, unclear behavior, or missing documentation
-- open a pull request when you already have a concrete change to propose
-- keep the core small and stable
-- prefer new `esp_*` libraries in `framework/libs/` when adding device behavior
-
-Before opening a PR, read:
-
-- `docs/architecture.md`
-- `docs/style-guide.md`
-- `docs/vibe_coding.md`
-
-If you want to create a new library, start from:
-
-- `framework/libs/esp_component_template`
-
-## License
-- Licensed under MIT. 
-- See [LICENSE](LICENSE) for details.
+- ESP-IDF 6.0 is the baseline.
+- `IDF_TARGET` is the hardware baseline.
+- `sdkconfig.defaults` defines common repository defaults.
+- `sdkconfig.defaults.<target>` defines target-specific defaults.
+- local `sdkconfig` overrides defaults.
+- `Kconfig` defines module options.
+- `esp32libfun.hpp` exposes enabled core modules only.
 
 ## Core Features
 
 - `esp32libfun`: core module with basic types, macros, and utilities. Convenience bootstrap with `esp32libfun_init()`.
-- `esp32libfun_at`: basic AT command parser for simple text-based protocols and colorful console commands
-- `esp32libfun_delay`: simple delay functions for readable loops
-- `esp32libfun_gpio`: thin wrapper over ESP-IDF GPIO APIs
-- `esp32libfun_i2c`: thin wrapper over ESP-IDF I2C APIs
-- `esp32libfun_ledc`: thin wrapper over ESP-IDF LEDC APIs for PWM and fades
-- `esp32libfun_mcpwm`: thin wrapper over ESP-IDF MCPWM APIs for servo and pulse generation
-- `esp32libfun_pcnt`: thin wrapper over ESP-IDF PCNT APIs for pulse counting
-- `esp32libfun_serial`: fast formatted output with the ESP-IDF console backend
-- `esp32libfun_spi`: thin wrapper over ESP-IDF SPI APIs
-- `esp32libfun_w5500`: dedicated SPI Ethernet wrapper over ESP-IDF `esp_eth` and the official W5500 driver
-- `esp32libfun_lan8720`: RMII Ethernet wrapper over ESP-IDF `esp_eth`, the internal EMAC, and the official LAN87xx PHY driver component
-- `esp32libfun_wifi_ap`: basic Wi-Fi access point mode management with event callbacks
-- `esp32libfun_webserver`: simple HTTP server with route handling and static file serving
-- `esp32libfun_wifi_sta`: basic Wi-Fi station mode management with event callbacks
+- `esp32libfun_at`: basic AT command parser for simple text-based protocols and colorful console commands.
+- `esp32libfun_delay`: simple delay functions for readable loops.
+- `esp32libfun_gpio`: thin wrapper over ESP-IDF GPIO APIs.
+- `esp32libfun_i2c`: thin wrapper over ESP-IDF I2C APIs.
+- `esp32libfun_ledc`: thin wrapper over ESP-IDF LEDC APIs for PWM and fades.
+- `esp32libfun_mcpwm`: thin wrapper over ESP-IDF MCPWM APIs for servo and pulse generation.
+- `esp32libfun_pcnt`: thin wrapper over ESP-IDF PCNT APIs for pulse counting.
+- `esp32libfun_serial`: fast formatted output with the ESP-IDF console backend.
+- `esp32libfun_spi`: thin wrapper over ESP-IDF SPI APIs.
+- `esp32libfun_w5500`: dedicated SPI Ethernet wrapper over ESP-IDF `esp_eth` and the official W5500 driver.
+- `esp32libfun_lan8720`: RMII Ethernet wrapper over ESP-IDF `esp_eth`, the internal EMAC, and the official LAN87xx PHY driver component.
+- `esp32libfun_webserver`: simple HTTP server with route handling and static file serving.
+- `esp32libfun_wifi_sta`: basic Wi-Fi station mode management with event callbacks.
 
-## Library Features
+## Library Template
 
-- `esp_component_template`: starting point for new libraries, with a simple API and optional managed task
-- `esp_button`: button handling with debouncing and click/double-click/hold event detection
-- `esp_pca9685`: driver for the PCA9685 16-channel PWM controller, with support for servo control and LED dimming
-- `esp_bmp280`: driver for the BMP280 temperature and pressure sensor, with I2C communication and reading functions
-- `esp_si7021`: driver for the Si7021 temperature and humidity sensor, with I2C communication and reading functions
-- `esp_ssd1306`: monochrome OLED library with framebuffer, text, progress bar, and dashboard helpers
-- `esp_st7789v2`: RGB565 TFT library with drawing primitives, text, widgets, and partial region updates
+- `esp_component_template`: starting point for external `esp_*` libraries, with a simple API and optional managed task.
+
+## Contributing
+
+- Keep the core small and stable.
+- Keep device behavior in separate `esp_*` library repositories.
+- Prefer thin wrappers over ESP-IDF instead of reimplementing SDK drivers.
+- Read `docs/architecture.md`, `docs/style-guide.md`, and `docs/vibe_coding.md` before large changes.
+
+## License
+
+Licensed under MIT. See [LICENSE](LICENSE) for details.

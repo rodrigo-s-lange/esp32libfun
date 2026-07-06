@@ -38,7 +38,7 @@ Resultado esperado:
 
 Restrições:
 - [ex: sem Wi-Fi, sem task própria, polling manual, etc]
-- [ex: usar esp_button]
+- [ex: usar uma biblioteca externa de botao]
 - [ex: criar em main.cpp apenas]
 - [ex: criar uma nova lib esp_*]
 
@@ -47,4 +47,3 @@ Ao responder:
 - depois proponha o menor caminho correto
 - se precisar criar uma nova lib `esp_*`, comece a partir do template existente
 - não trate o agregador `esp32libfun` como dependência obrigatória para libs `esp_*`
-

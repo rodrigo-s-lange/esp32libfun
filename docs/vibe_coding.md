@@ -18,7 +18,7 @@ Read these files first:
 Use this document when you want to:
 
 - ask an AI to create an application inside this repository
-- ask an AI to add a new `esp_*` library
+- ask an AI to design a new external `esp_*` library
 - ask an AI to refactor code without breaking the project architecture
 
 ## Project Mental Model
@@ -26,7 +26,7 @@ Use this document when you want to:
 Keep this model explicit in the prompt:
 
 - `framework/core/esp32libfun_*` = thin core modules over ESP-IDF
-- `framework/libs/esp_*` = device and higher-level libraries
+- external `esp_*` repositories = device and higher-level libraries
 - the core stays small and pragmatic
 - `esp_*` libraries build on the core, not on the `esp32libfun` aggregator
 - `esp_component_template` is the starting point for new `esp_*` libraries
@@ -36,8 +36,8 @@ Important rules:
 - prefer short, readable wrappers
 - do not invent large subsystems without strong justification
 - preserve the naming and structure already present in the repo
-- check the existing core modules and libraries before creating new code
-- reuse an existing library as a behavioral reference when the transport matches
+- check the existing core modules before creating new code
+- reuse an existing external library as a behavioral reference when the transport matches
 - treat shared resources as concurrent by default
 - expect multiple tasks or cores to touch global wrappers unless the code clearly proves otherwise
 - ESP-IDF 6.0 is the baseline
@@ -64,7 +64,7 @@ Before proposing or editing code, read these files:
 
 Project model:
 - `framework/core/esp32libfun_*` = thin core modules over ESP-IDF
-- `framework/libs/esp_*` = device and higher-level libraries
+- external `esp_*` repositories = device and higher-level libraries
 - prefer short, pragmatic wrappers
 - preserve the style and naming already used in the project
 - ESP-IDF 6.0 is the baseline
@@ -73,7 +73,7 @@ Project model:
 
 Architecture rules:
 - use the core directly when the need is simple
-- use `esp_*` when device behavior deserves its own library
+- use an external `esp_*` library when device behavior deserves its own repository
 - `esp_*` must not depend on the `esp32libfun` aggregator as a required dependency
 - for predictable behavior, prefer manual control before hidden automation
 - before adding code, inspect the existing core modules and prefer reusing them
@@ -97,7 +97,7 @@ Restrictions:
 - [example: edit main/main.cpp only]
 - [example: no Wi-Fi]
 - [example: no internal task]
-- [example: use esp_button]
+- [example: use an external button library]
 - [example: use manual polling]
 
 When answering:
@@ -108,7 +108,7 @@ When answering:
 
 ## Prompt Template: Create A New Library
 
-Use this when the goal is to create a new component in `framework/libs/`.
+Use this when the goal is to create a new external `esp_*` library repository.
 
 ```text
 You are working inside the esp32libfun repository.
@@ -121,12 +121,12 @@ Before proposing or editing code, read these files:
 - framework/libs/esp_component_template/README.md
 - framework/libs/esp_component_template/include/esp_component_template.hpp
 - framework/libs/esp_component_template/esp_component_template.cpp
-- at least one existing library that uses the same transport or runtime pattern
+- at least one external library that uses the same transport or runtime pattern
 
 Project model:
 - `framework/core/esp32libfun_*` = thin core modules over ESP-IDF
-- `framework/libs/esp_*` = device and higher-level libraries
-- new libraries belong in `framework/libs/esp_*`
+- external `esp_*` repositories = device and higher-level libraries
+- new libraries belong in their own repositories
 - the core must stay small and stable
 
 Rules for the new library:
@@ -145,7 +145,7 @@ Rules for the new library:
 - do not edit `sdkconfig` as part of normal library creation
 
 New library:
-- name: [example: esp_bmp280]
+- name: [example: esp_example_sensor]
 - purpose: [describe]
 - hardware: [describe]
 - transport: [I2C/SPI/UART/GPIO/etc]
