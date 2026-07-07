@@ -17,6 +17,7 @@ Regras importantes do projeto:
 - prefira wrappers curtos e pragmáticos
 - não invente subsistemas grandes sem necessidade
 - para novas libs `esp_*`, siga o padrão e use `framework/libs/esp_component_template`
+- `framework/libs/esp_example_reference` é só um exemplo lido, não uma base para depender ou estender
 - o core não precisa seguir regras rígidas de lifecycle, mas libs `esp_*` devem preferir `init()/start()/stop()/end()` quando fizer sentido
 - evite heap no core
 - sem exceções, sem RTTI

@@ -8,10 +8,11 @@ surface for humans and LLMs that need to start useful work quickly.
 
 Read these files first:
 
+- `AGENTS.md`
 - `README.md`
 - `docs/architecture.md`
 - `docs/style-guide.md`
-- `AGENTS.md`
+- `docs/rag-guide.md`
 
 ## When To Use This Doc
 
@@ -30,6 +31,8 @@ Keep this model explicit in the prompt:
 - the core stays small and pragmatic
 - `esp_*` libraries build on the core, not on the `esp32libfun` aggregator
 - `esp_component_template` is the starting point for new `esp_*` libraries
+- `esp_example_reference` is a renamed instantiation of the template kept only
+  for reading; it is not core and not something to depend on or extend
 
 Important rules:
 
@@ -37,7 +40,7 @@ Important rules:
 - do not invent large subsystems without strong justification
 - preserve the naming and structure already present in the repo
 - check the existing core modules before creating new code
-- reuse an existing external library as a behavioral reference when the transport matches
+- reuse an existing sibling `esp_*` library as a behavioral reference when one is available and its transport matches; do not invent one if none is available
 - treat shared resources as concurrent by default
 - expect multiple tasks or cores to touch global wrappers unless the code clearly proves otherwise
 - ESP-IDF 6.0 is the baseline
@@ -57,10 +60,10 @@ Use this when the goal is to build or modify application code in `main/`.
 You are working inside the esp32libfun repository.
 
 Before proposing or editing code, read these files:
+- AGENTS.md
 - README.md
 - docs/architecture.md
 - docs/style-guide.md
-- AGENTS.md
 
 Project model:
 - `framework/core/esp32libfun_*` = thin core modules over ESP-IDF
@@ -114,14 +117,17 @@ Use this when the goal is to create a new external `esp_*` library repository.
 You are working inside the esp32libfun repository.
 
 Before proposing or editing code, read these files:
+- AGENTS.md
 - README.md
 - docs/architecture.md
 - docs/style-guide.md
-- AGENTS.md
 - framework/libs/esp_component_template/README.md
 - framework/libs/esp_component_template/include/esp_component_template.hpp
 - framework/libs/esp_component_template/esp_component_template.cpp
-- at least one external library that uses the same transport or runtime pattern
+- framework/libs/esp_example_reference/README.md (a renamed instantiation of
+  the template, kept only as a reading reference)
+- if a sibling `esp_*` repository with the same transport or runtime pattern
+  is available, read it too; do not invent one if none is available
 
 Project model:
 - `framework/core/esp32libfun_*` = thin core modules over ESP-IDF
@@ -130,10 +136,10 @@ Project model:
 - the core must stay small and stable
 
 Rules for the new library:
-- start from `esp_component_template`
-- inspect an existing library that uses the same core dependency before designing transport ownership
+- start from `esp_component_template`, not from `esp_example_reference`
+- if a sibling library with the same core dependency is available, inspect it before designing transport ownership
 - rename namespace, class, header, source, callback alias, and global object correctly
-- keep the public header small and documented with Doxygen comments
+- keep the public header small, with `///` + `@param`/`@return` on every public method, matching the core module style
 - depend only on the specific core modules that the library actually uses
 - do not depend on the `esp32libfun` aggregator as a required dependency
 - do not make the library own shared transports unless the existing project pattern already does that
@@ -179,10 +185,10 @@ to improve.
 You are working inside the esp32libfun repository.
 
 Before proposing or editing code, read these files:
+- AGENTS.md
 - README.md
 - docs/architecture.md
 - docs/style-guide.md
-- AGENTS.md
 
 Task:
 [describe the refactor here]

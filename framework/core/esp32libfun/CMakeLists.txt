@@ -46,6 +46,26 @@ if(CONFIG_ESP32LIBFUN_SPI)
     list(APPEND priv_requires esp32libfun_spi)
 endif()
 
+if(CONFIG_ESP32LIBFUN_ADC)
+    list(APPEND requires esp32libfun_adc)
+    list(APPEND priv_requires esp32libfun_adc)
+endif()
+
+if(CONFIG_ESP32LIBFUN_GPTIMER)
+    list(APPEND requires esp32libfun_gptimer)
+    list(APPEND priv_requires esp32libfun_gptimer)
+endif()
+
+if(CONFIG_ESP32LIBFUN_RMT)
+    list(APPEND requires esp32libfun_rmt)
+    list(APPEND priv_requires esp32libfun_rmt)
+endif()
+
+if(CONFIG_ESP32LIBFUN_TWAI)
+    list(APPEND requires esp32libfun_twai)
+    list(APPEND priv_requires esp32libfun_twai)
+endif()
+
 if(CONFIG_ESP32LIBFUN_W5500)
     list(APPEND requires esp32libfun_w5500)
     list(APPEND requires esp_eth)

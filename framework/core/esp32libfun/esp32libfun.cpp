@@ -1,7 +1,5 @@
 #include "esp32libfun.hpp"
 
-using namespace esp32libfun;
-
 const char *esp32libfun_version(void)
 {
     return ESP32LIBFUN_VERSION;

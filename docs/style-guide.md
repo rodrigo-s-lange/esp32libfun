@@ -152,9 +152,14 @@ Guidelines:
 - include only what the public API really needs
 - prefer forward declarations when practical
 - keep private implementation details out of headers
-- declare public APIs with `///` comments when the behavior is not obvious
+- document every public method with a `///` brief plus `@param` for each
+  parameter and `@return` for non-void results
 
-This keeps the module easier to read and faster for LLMs to interpret.
+This keeps the module easier to read, gives richer IDE autocomplete/hover
+(most language servers show `@param` text per-argument during signature
+help, which a brief-only comment cannot), and stays useful even without a
+Doxygen generation pipeline, since editors read these comments directly from
+source.
 
 ## 7. C++ Rules
 

@@ -77,6 +77,11 @@ bool isValidBusPin(int pin)
     return GPIO_IS_VALID_OUTPUT_GPIO(static_cast<gpio_num_t>(pin));
 }
 
+bool isValidMosiPin(int pin)
+{
+    return pin < 0 || GPIO_IS_VALID_OUTPUT_GPIO(static_cast<gpio_num_t>(pin));
+}
+
 bool isValidMisoPin(int pin)
 {
     return pin < 0 || GPIO_IS_VALID_GPIO(static_cast<gpio_num_t>(pin));
@@ -163,7 +168,7 @@ esp_err_t Spi::begin(int sclk_pin, int mosi_pin, int miso_pin, int port, size_t 
 {
     if (!isValidHost(port) ||
         !isValidBusPin(sclk_pin) ||
-        !isValidBusPin(mosi_pin) ||
+        !isValidMosiPin(mosi_pin) ||
         !isValidMisoPin(miso_pin) ||
         max_transfer_sz == 0) {
         return ESP_ERR_INVALID_ARG;

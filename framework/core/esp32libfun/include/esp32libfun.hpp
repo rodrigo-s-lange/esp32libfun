@@ -2,6 +2,9 @@
 
 #include "sdkconfig.h"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 // This aggregator uses explicit relative includes on purpose so the header stays
 // self-contained and mirrors the core directory layout directly.
 #if CONFIG_ESP32LIBFUN_SERIAL
@@ -36,8 +39,40 @@
 #include "../../esp32libfun_spi/include/esp32libfun_spi.hpp"
 #endif
 
+#if CONFIG_ESP32LIBFUN_ADC
+#include "../../esp32libfun_adc/include/esp32libfun_adc.hpp"
+#endif
+
+#if CONFIG_ESP32LIBFUN_GPTIMER
+#include "../../esp32libfun_gptimer/include/esp32libfun_gptimer.hpp"
+#endif
+
+#if CONFIG_ESP32LIBFUN_RMT
+#include "../../esp32libfun_rmt/include/esp32libfun_rmt.hpp"
+#endif
+
+#if CONFIG_ESP32LIBFUN_TWAI
+#include "../../esp32libfun_twai/include/esp32libfun_twai.hpp"
+#endif
+
+#if CONFIG_ESP32LIBFUN_W5500
+#include "../../esp32libfun_w5500/include/esp32libfun_w5500.hpp"
+#endif
+
+#if CONFIG_ESP32LIBFUN_LAN8720
+#include "../../esp32libfun_lan8720/include/esp32libfun_lan8720.hpp"
+#endif
+
 #if CONFIG_ESP32LIBFUN_MCPWM
 #include "../../esp32libfun_mcpwm/include/esp32libfun_mcpwm.hpp"
+#endif
+
+#if CONFIG_ESP32LIBFUN_WIFI_STA
+#include "../../esp32libfun_wifi_sta/include/esp32libfun_wifi_sta.hpp"
+#endif
+
+#if CONFIG_ESP32LIBFUN_WEBSERVER
+#include "../../esp32libfun_webserver/include/esp32libfun_webserver.hpp"
 #endif
 
 #define ESP32LIBFUN_VERSION "v0.0.0"
@@ -46,39 +81,26 @@
 #define ESP32LIBFUN_VERSION_PATCH 0
 #define ESP32LIBFUN_IDF_BASELINE "v6.0.0"
 
+/// Returns the framework major version as text.
+///
+/// @return Major version number as a static string.
 const char *esp32libfun_major(void);
+/// Returns the framework minor version as text.
+///
+/// @return Minor version number as a static string.
 const char *esp32libfun_minor(void);
+/// Returns the framework patch version as text.
+///
+/// @return Patch version number as a static string.
 const char *esp32libfun_patch(void);
+/// Returns the full framework version string.
+///
+/// @return Version string, e.g. `"v0.0.0"`.
 const char *esp32libfun_version(void);
 
+/// Initializes enabled framework convenience services.
+///
+/// Currently starts the serial console (when enabled) and the AT console
+/// (when enabled). Other core modules are initialized on demand by calling
+/// their own `begin()`/`init()`.
 void esp32libfun_init(void);
-
-// Bring public API symbols into the global scope so users of this header
-// do not need to qualify with esp32libfun:: or use 'using namespace'.
-#if CONFIG_ESP32LIBFUN_SERIAL
-using esp32libfun::serial;
-#endif
-#if CONFIG_ESP32LIBFUN_AT
-using esp32libfun::at;
-#endif
-#if CONFIG_ESP32LIBFUN_DELAY
-using esp32libfun::delay;
-#endif
-#if CONFIG_ESP32LIBFUN_GPIO
-using esp32libfun::gpio;
-#endif
-#if CONFIG_ESP32LIBFUN_LEDC
-using esp32libfun::ledc;
-#endif
-#if CONFIG_ESP32LIBFUN_I2C
-using esp32libfun::i2c;
-#endif
-#if CONFIG_ESP32LIBFUN_PCNT
-using esp32libfun::pcnt;
-#endif
-#if CONFIG_ESP32LIBFUN_SPI
-using esp32libfun::spi;
-#endif
-#if CONFIG_ESP32LIBFUN_MCPWM
-using esp32libfun::mcpwm;
-#endif

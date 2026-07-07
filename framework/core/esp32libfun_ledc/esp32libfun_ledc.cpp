@@ -67,7 +67,7 @@ uint32_t maxDutyForBits(uint8_t bits)
     if (bits == 0 || bits >= 31U) {
         return 0;
     }
-    return (1UL << bits) - 1UL;
+    return 1UL << bits;
 }
 
 esp_err_t configureTimer(int timer_index, uint32_t freq_hz, uint8_t resolution_bits)
@@ -338,7 +338,12 @@ esp_err_t Ledc::duty(int pin, uint32_t value) const
         return ESP_ERR_INVALID_ARG;
     }
 
-    return ledc_set_duty_and_update(SPEED_MODE, static_cast<ledc_channel_t>(channel_index), value, 0);
+    err = ledc_set_duty(SPEED_MODE, static_cast<ledc_channel_t>(channel_index), value);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    return ledc_update_duty(SPEED_MODE, static_cast<ledc_channel_t>(channel_index));
 }
 
 uint32_t Ledc::duty(int pin) const
@@ -386,7 +391,13 @@ esp_err_t Ledc::percent(int pin, float value) const
 
     const uint32_t max_duty = maxDutyForBits(s_ledc_timers[s_ledc_channels[channel_index].timer_index].resolution_bits);
     const uint32_t duty_value = static_cast<uint32_t>((value * static_cast<float>(max_duty)) / 100.0f + 0.5f);
-    return ledc_set_duty_and_update(SPEED_MODE, static_cast<ledc_channel_t>(channel_index), duty_value, 0);
+
+    err = ledc_set_duty(SPEED_MODE, static_cast<ledc_channel_t>(channel_index), duty_value);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    return ledc_update_duty(SPEED_MODE, static_cast<ledc_channel_t>(channel_index));
 }
 
 esp_err_t Ledc::freq(int pin, uint32_t hz) const

@@ -16,7 +16,6 @@ namespace esp32libfun {
 namespace {
 
 static const char *TAG = "ESP32LIBFUN_AT";
-
 struct StoredAtCommand {
     bool used = false;
     char command[At::MAX_COMMAND_LEN + 1] = {};
@@ -206,6 +205,11 @@ esp_err_t At::feedLine(const char *line)
         return ESP_OK;
     }
 
+    if (strcmp(line, "AT+RESET") == 0) {
+        reset();
+        return ESP_OK;
+    }
+
     const char *separator = nullptr;
     for (const char *cursor = line; *cursor != '\0'; ++cursor) {
         if (*cursor == '=' || *cursor == ' ' || *cursor == '\t') {
@@ -232,6 +236,25 @@ esp_err_t At::feedLine(const char *line)
                 return ESP_OK;
             }
         }
+
+        for (size_t i = 0; i < s_command_count; ++i) {
+            if (!s_commands[i].used) {
+                continue;
+            }
+
+            const size_t stored_length = strlen(s_commands[i].command);
+            if (stored_length == 0 || s_commands[i].command[stored_length - 1] != '?') {
+                continue;
+            }
+
+            if (strncmp(s_commands[i].command, line, stored_length) == 0) {
+                at_handler_t handler = s_commands[i].handler;
+                const char *inline_args = line + stored_length;
+                at_unlock();
+                handler(inline_args);
+                return ESP_OK;
+            }
+        }
         at_unlock();
     }
 
@@ -239,7 +262,7 @@ esp_err_t At::feedLine(const char *line)
     return ESP_ERR_NOT_FOUND;
 }
 
-esp_err_t At::add(const char *command, at_handler_t handler, const char *help)
+esp_err_t At::registerCmd(const char *command, at_handler_t handler, const char *help)
 {
     if (command == nullptr || handler == nullptr || command[0] == '\0') {
         return ESP_ERR_INVALID_ARG;
@@ -289,11 +312,6 @@ esp_err_t At::add(const char *command, at_handler_t handler, const char *help)
     return ESP_OK;
 }
 
-esp_err_t At::registerCmd(const char *command, at_handler_t handler, const char *help)
-{
-    return add(command, handler, help);
-}
-
 esp_err_t At::unregisterCmd(const char *command)
 {
     if (command == nullptr || command[0] == '\0') {
@@ -336,6 +354,7 @@ void At::help(void) const
     serial.println(O "AT commands:");
     serial.println(C "  AT+HELP?");
     serial.println(C "  AT+VER?");
+    serial.println(C "  AT+RESET");
 
     if (!at_lock()) {
         serial.println(Y "  <registry unavailable>");
@@ -360,6 +379,12 @@ void At::help(void) const
 void At::version(void) const
 {
     serial.println(C "%s", ESP32LIBFUN_VERSION);
+}
+
+void At::reset(void) const
+{
+    serial.println(R "reset..." W);
+    esp_restart();
 }
 
 void At::writeLine(const char *fmt, ...) const

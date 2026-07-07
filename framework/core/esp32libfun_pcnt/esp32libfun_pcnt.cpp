@@ -19,6 +19,8 @@ struct PcntSlot {
     bool started = false;
     int pin = -1;
     int edge = 0;
+    int low_limit = 0;
+    int high_limit = 0;
     int watch_point = 0;
     bool watch_enabled = false;
     pcnt_unit_handle_t unit = nullptr;
@@ -72,12 +74,17 @@ bool isValidInputPin(int pin)
     return GPIO_IS_VALID_GPIO(static_cast<gpio_num_t>(pin));
 }
 
+bool isLimitWatchPoint(const PcntSlot &slot, int watch_point)
+{
+    return watch_point == slot.low_limit || watch_point == slot.high_limit;
+}
+
 bool IRAM_ATTR onPcntReach(pcnt_unit_handle_t unit, const pcnt_watch_event_data_t *edata, void *user_ctx)
 {
     (void)unit;
 
     auto *slot = static_cast<PcntSlot *>(user_ctx);
-    if (slot == nullptr || s_pcnt_queue == nullptr) {
+    if (slot == nullptr || !slot->watch_enabled || edata->watch_point_value != slot->watch_point || s_pcnt_queue == nullptr) {
         return false;
     }
 
@@ -127,7 +134,9 @@ esp_err_t deleteSlot(PcntSlot &slot)
         pcnt_unit_disable(slot.unit);
     }
     if (slot.watch_enabled && slot.unit != nullptr) {
-        pcnt_unit_remove_watch_point(slot.unit, slot.watch_point);
+        if (!isLimitWatchPoint(slot, slot.watch_point)) {
+            pcnt_unit_remove_watch_point(slot.unit, slot.watch_point);
+        }
     }
     if (slot.channel != nullptr) {
         pcnt_del_channel(slot.channel);
@@ -300,6 +309,21 @@ esp_err_t Pcnt::begin(int pin, int edge, int low_limit, int high_limit, uint32_t
         return err;
     }
 
+    err = pcnt_unit_add_watch_point(unit, low_limit);
+    if (err != ESP_OK) {
+        pcnt_del_channel(channel_handle);
+        pcnt_del_unit(unit);
+        return err;
+    }
+
+    err = pcnt_unit_add_watch_point(unit, high_limit);
+    if (err != ESP_OK) {
+        pcnt_unit_remove_watch_point(unit, low_limit);
+        pcnt_del_channel(channel_handle);
+        pcnt_del_unit(unit);
+        return err;
+    }
+
     pcnt_event_callbacks_t cbs = {};
     cbs.on_reach = onPcntReach;
     PcntSlot *slot = &s_pcnt_slots[slot_index];
@@ -314,6 +338,8 @@ esp_err_t Pcnt::begin(int pin, int edge, int low_limit, int high_limit, uint32_t
     slot->started = false;
     slot->pin = pin;
     slot->edge = edge;
+    slot->low_limit = low_limit;
+    slot->high_limit = high_limit;
     slot->unit = unit;
     slot->channel = channel_handle;
 
@@ -506,12 +532,16 @@ esp_err_t Pcnt::watch(int pin, int watch_point, pcnt_callback_t callback, void *
 
     auto &slot = s_pcnt_slots[slot_index];
     if (slot.watch_enabled) {
-        pcnt_unit_remove_watch_point(slot.unit, slot.watch_point);
+        if (!isLimitWatchPoint(slot, slot.watch_point)) {
+            pcnt_unit_remove_watch_point(slot.unit, slot.watch_point);
+        }
     }
 
-    err = pcnt_unit_add_watch_point(slot.unit, watch_point);
-    if (err != ESP_OK) {
-        return err;
+    if (!isLimitWatchPoint(slot, watch_point)) {
+        err = pcnt_unit_add_watch_point(slot.unit, watch_point);
+        if (err != ESP_OK) {
+            return err;
+        }
     }
 
     slot.watch_point = watch_point;
@@ -541,9 +571,11 @@ esp_err_t Pcnt::watchOff(int pin) const
 
     auto &slot = s_pcnt_slots[slot_index];
     if (slot.watch_enabled) {
-        err = pcnt_unit_remove_watch_point(slot.unit, slot.watch_point);
-        if (err != ESP_OK) {
-            return err;
+        if (!isLimitWatchPoint(slot, slot.watch_point)) {
+            err = pcnt_unit_remove_watch_point(slot.unit, slot.watch_point);
+            if (err != ESP_OK) {
+                return err;
+            }
         }
         slot.watch_enabled = false;
     }

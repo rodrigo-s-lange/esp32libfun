@@ -29,6 +29,7 @@ portMUX_TYPE s_serial_sync_lock = portMUX_INITIALIZER_UNLOCKED;
 
 bool s_usb_serial_jtag_installed = false;
 bool s_skip_next_lf = false;
+bool s_skip_escape_sequence = false;
 
 class LockGuard {
 public:
@@ -78,6 +79,10 @@ bool serial_target_has_native_usb(void)
 
 esp_err_t serial_write_bytes(const char *data, size_t length)
 {
+    if (data == nullptr || length == 0) {
+        return ESP_OK;
+    }
+
 #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
     return (usb_serial_jtag_write_bytes(data, length, 20 / portTICK_PERIOD_MS) >= 0) ? ESP_OK : ESP_FAIL;
 #elif CONFIG_ESP_CONSOLE_UART
@@ -99,6 +104,18 @@ int serial_read_byte(char *ch)
     (void)ch;
     return -1;
 #endif
+}
+
+void serial_write_echo(const char *data, size_t length)
+{
+    if (data == nullptr || length == 0) {
+        return;
+    }
+
+    // Echo is emitted from readLine() while the RX path is locked.
+    // It intentionally bypasses the TX mutex to avoid lock ordering problems
+    // with deinit() and other console users.
+    serial_write_bytes(data, length);
 }
 
 } // namespace
@@ -172,6 +189,8 @@ esp_err_t Serial::init(void)
 #endif
 
     initialized_ = true;
+    s_skip_next_lf = false;
+    s_skip_escape_sequence = false;
     ESP_LOGI(TAG, "initialized using %s backend", serial_backend_name());
 
 #if !CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
@@ -215,6 +234,7 @@ esp_err_t Serial::deinit(void)
 #endif
 
     s_skip_next_lf = false;
+    s_skip_escape_sequence = false;
     initialized_ = false;
     ESP_LOGI(TAG, "deinitialized");
     return ESP_OK;
@@ -232,6 +252,34 @@ bool Serial::isInitialized(void) const
     }
 
     return initialized_;
+}
+
+void Serial::setEcho(bool enabled)
+{
+    if (ensureSyncPrimitives() != ESP_OK) {
+        return;
+    }
+
+    LockGuard guard(s_serial_state_mutex);
+    if (!guard.locked()) {
+        return;
+    }
+
+    echo_enabled_ = enabled;
+}
+
+bool Serial::echoEnabled(void) const
+{
+    if (s_serial_state_mutex == nullptr) {
+        return echo_enabled_;
+    }
+
+    LockGuard guard(s_serial_state_mutex);
+    if (!guard.locked()) {
+        return echo_enabled_;
+    }
+
+    return echo_enabled_;
 }
 
 int Serial::readByte(char *ch) const
@@ -263,6 +311,15 @@ esp_err_t Serial::readLine(char *buffer, size_t length) const
         return err;
     }
 
+    bool echo = echo_enabled_;
+    {
+        LockGuard state_guard(s_serial_state_mutex);
+        if (!state_guard.locked()) {
+            return ESP_ERR_TIMEOUT;
+        }
+        echo = echo_enabled_;
+    }
+
     LockGuard guard(s_serial_rx_mutex);
     if (!guard.locked()) {
         return ESP_ERR_TIMEOUT;
@@ -278,6 +335,8 @@ esp_err_t Serial::readLine(char *buffer, size_t length) const
             continue;
         }
 
+        const unsigned char byte = static_cast<unsigned char>(ch);
+
         if (s_skip_next_lf) {
             s_skip_next_lf = false;
             if (ch == '\n') {
@@ -285,16 +344,54 @@ esp_err_t Serial::readLine(char *buffer, size_t length) const
             }
         }
 
+        if (s_skip_escape_sequence) {
+            if (byte >= 0x40U && byte <= 0x7EU) {
+                s_skip_escape_sequence = false;
+            }
+            continue;
+        }
+
+        if (byte == 0x1BU) {
+            s_skip_escape_sequence = true;
+            continue;
+        }
+
+        if (ch == '\b' || ch == 0x7f) {
+            if (index > 0) {
+                --index;
+                if (echo) {
+                    static const char erase[] = "\b \b";
+                    serial_write_echo(erase, sizeof(erase) - 1);
+                }
+            }
+            continue;
+        }
+
         if (ch == '\r') {
             s_skip_next_lf = true;
+            if (echo) {
+                static const char newline[] = "\r\n";
+                serial_write_echo(newline, sizeof(newline) - 1);
+            }
             break;
         }
 
         if (ch == '\n') {
+            if (echo) {
+                static const char newline[] = "\r\n";
+                serial_write_echo(newline, sizeof(newline) - 1);
+            }
             break;
         }
 
+        if (byte < 0x20U || byte > 0x7EU) {
+            continue;
+        }
+
         buffer[index++] = ch;
+        if (echo) {
+            serial_write_echo(&ch, 1);
+        }
     }
 
     buffer[index] = '\0';

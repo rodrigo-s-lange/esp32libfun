@@ -15,10 +15,8 @@ class Template;
 /// TODO rename: rename the callback alias to match your library.
 using template_callback_t = void (*)(Template &instance);
 
-/// Reference template for new esp_* libraries.
-///
-/// The component supports both the manual lifecycle path and the optional
-/// managed runtime path used by higher-level libraries in this framework.
+/// Reference template for new esp_* libraries. Supports both the manual
+/// lifecycle path and the optional managed runtime path.
 ///
 /// TODO rename:
 /// - namespace esp_component_template
@@ -38,13 +36,13 @@ public:
     /// Maximum visible name length stored by the component.
     static constexpr size_t MAX_NAME_LEN = 24;
 
-    /// Configures the component in manual mode.
+    /// Configures the component in manual mode with a name and default interval.
     ///
     /// @param name Human-readable name used by logs and the managed task.
     /// @param interval_ms Default execution period in milliseconds.
     /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure.
     esp_err_t init(const char *name = "template", uint32_t interval_ms = DEFAULT_INTERVAL_MS);
-    /// Starts the optional background task with conservative defaults.
+    /// Starts the optional background task with the given interval, priority, and core affinity.
     ///
     /// @param interval_ms Execution period in milliseconds for the task loop.
     /// @param priority FreeRTOS priority used by the managed task.
@@ -63,12 +61,14 @@ public:
     esp_err_t end(void);
 
     /// Returns true when the instance has been configured with `init()`.
+    ///
+    /// @return true when `init()` has already succeeded.
     [[nodiscard]] bool ready(void) const;
     /// Returns true when the optional managed task is active.
-    [[nodiscard]] bool started(void) const;
-    /// Executes one manual-mode processing step.
     ///
-    /// Fails if the managed task is already running.
+    /// @return true when `start()` is currently active.
+    [[nodiscard]] bool started(void) const;
+    /// Executes one manual-mode processing step. Fails if the managed task is running.
     ///
     /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure.
     esp_err_t loop(void);
@@ -78,17 +78,23 @@ public:
     /// @param interval_ms New execution period in milliseconds.
     /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure.
     esp_err_t intervalMs(uint32_t interval_ms);
-    /// Registers one optional callback fired by `loop()` or the managed task.
+    /// Registers one optional callback fired by `loop()` or the managed task, or clears it with `nullptr`.
     ///
     /// @param callback Callback pointer, or `nullptr` to clear the callback.
     /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure.
     esp_err_t onTick(template_callback_t callback);
 
     /// Returns the configured component name.
+    ///
+    /// @return Configured name, or an empty string when not configured.
     [[nodiscard]] const char *name(void) const;
     /// Returns the current execution interval in milliseconds.
+    ///
+    /// @return Current interval in milliseconds.
     [[nodiscard]] uint32_t intervalMs(void) const;
     /// Returns the number of times the component step has executed.
+    ///
+    /// @return Number of executed steps since the last `init()`/`end()`.
     [[nodiscard]] uint32_t counter(void) const;
 
 private:

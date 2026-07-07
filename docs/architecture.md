@@ -2,14 +2,19 @@
 
 ## Purpose
 
-`esp32libfun` is a framework on top of ESP-IDF 6.0 focused on:
+`esp32libfun` is a HAL-oriented C++ core toolkit on top of ESP-IDF 6.0 focused on:
 
 - short code
 - fast comprehension
 - practical abstractions
 - direct integration with real ESP-IDF components
 
-The framework is designed to be pleasant for humans and fast for LLMs to read.
+Most core modules are direct-call wrappers over ESP-IDF peripherals. The
+application calls the module APIs and keeps control of the flow. The optional
+AT subsystem is the plugin-style framework layer: commands are registered ahead
+of time and dispatched by the AT console when input arrives.
+
+The project is designed to be pleasant for humans and fast for LLMs to read.
 This matters because the expected workflow is highly iterative, conversational,
 and often assisted by AI during prototyping and implementation.
 
@@ -55,6 +60,8 @@ The project is organized in layers with clear naming:
 
 - core modules in this repository use the `esp32libfun_*` prefix
 - external device libraries and higher-level components use the `esp_*` prefix
+- most core modules are direct-call HAL wrappers
+- `esp32libfun_at` provides the optional inversion-of-control/plugin layer
 
 Examples:
 
@@ -65,6 +72,39 @@ Examples:
 
 This split keeps the framework core small and stable while allowing reusable
 device libraries to grow in their own repositories.
+
+## Framework Boundary
+
+The word "framework" in this repository describes the project structure,
+conventions, and optional AT/plugin system. It does not mean every core module
+uses inversion of control.
+
+Direct-call modules include:
+
+- `esp32libfun_gpio`
+- `esp32libfun_i2c`
+- `esp32libfun_spi`
+- `esp32libfun_adc`
+- `esp32libfun_gptimer`
+- `esp32libfun_ledc`
+- `esp32libfun_pcnt`
+- `esp32libfun_mcpwm`
+- `esp32libfun_serial`
+- `esp32libfun_delay`
+- `esp32libfun_rmt`
+- `esp32libfun_twai`
+
+In these modules, user code calls the wrapper API directly and owns the
+application flow.
+
+The AT layer is different:
+
+- components register command handlers
+- the AT console owns the parsing loop
+- handlers are called later when matching commands arrive
+
+That makes `esp32libfun_at` and the sidecar command files the actual
+plugin-style framework part of the core.
 
 ## Core Role
 
@@ -79,6 +119,10 @@ Typical core responsibilities:
 - mcpwm
 - delay
 - i2c
+- adc
+- gptimer
+- twai
+- rmt
 - other transport or system-facing layers that many libraries depend on
 
 Practical split inside the core:

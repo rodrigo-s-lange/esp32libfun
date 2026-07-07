@@ -19,8 +19,6 @@ namespace {
 constexpr EventBits_t kWifiConnectedBit = BIT0;
 constexpr EventBits_t kWifiStartedBit = BIT1;
 constexpr uint32_t kWifiStartTimeoutMs = 1000;
-constexpr uint32_t kWifiConnectRetryDelayMs = 50;
-constexpr uint32_t kWifiConnectRetryCount = 10;
 constexpr size_t kSsidMaxLen = 32;
 constexpr size_t kPasswordMaxLen = 64;
 constexpr size_t kHostnameMaxLen = 32;
@@ -29,6 +27,7 @@ constexpr size_t kIpv4StringMaxLen = 16;
 struct WifiStaState {
     bool initialized = false;
     bool started = false;
+    bool connect_requested = false;
     bool hostname_set = false;
     bool ip_set = false;
     bool gateway_set = false;
@@ -73,19 +72,70 @@ void setLocalIpString(const char *value)
     taskEXIT_CRITICAL(&s_wifi_spinlock);
 }
 
+const char *ip4AddrToString(const esp_ip4_addr_t *value, char *buffer, size_t buffer_len)
+{
+    if (buffer == nullptr || buffer_len == 0) {
+        return "";
+    }
+
+    if (value == nullptr) {
+        strncpy(buffer, "0.0.0.0", buffer_len - 1);
+        buffer[buffer_len - 1] = '\0';
+        return buffer;
+    }
+
+    esp_ip4addr_ntoa(value, buffer, buffer_len);
+    return buffer;
+}
+
+void setConnectRequested(bool value)
+{
+    taskENTER_CRITICAL(&s_wifi_spinlock);
+    s_wifi_state.connect_requested = value;
+    taskEXIT_CRITICAL(&s_wifi_spinlock);
+}
+
+bool connectRequested(void)
+{
+    taskENTER_CRITICAL(&s_wifi_spinlock);
+    const bool value = s_wifi_state.connect_requested;
+    taskEXIT_CRITICAL(&s_wifi_spinlock);
+    return value;
+}
+
 void wifiEventHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     (void)arg;
 
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        s_wifi_state.started = true;
         xEventGroupSetBits(s_wifi_event_group, kWifiStartedBit);
+        ESP_LOGI(TAG, "station started");
+
+        if (connectRequested()) {
+            const esp_err_t err = esp_wifi_connect();
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "connect on start failed: %s", esp_err_to_name(err));
+            }
+        }
+        return;
+    }
+
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_STOP) {
+        s_wifi_state.started = false;
+        xEventGroupClearBits(s_wifi_event_group, kWifiStartedBit | kWifiConnectedBit);
+        setLocalIpString("0.0.0.0");
+        ESP_LOGI(TAG, "station stopped");
         return;
     }
 
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         xEventGroupClearBits(s_wifi_event_group, kWifiConnectedBit);
         setLocalIpString("0.0.0.0");
-        ESP_LOGW(TAG, "station disconnected");
+        const wifi_event_sta_disconnected_t *event =
+            static_cast<const wifi_event_sta_disconnected_t *>(event_data);
+        const unsigned reason = (event != nullptr) ? static_cast<unsigned>(event->reason) : 0U;
+        ESP_LOGW(TAG, "station disconnected (reason=%u)", reason);
         return;
     }
 
@@ -277,7 +327,7 @@ esp_err_t WifiSta::initStack(void)
         nullptr,
         &s_ip_event_instance_got_ip));
 
-    err = esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+    err = esp_wifi_set_storage(WIFI_STORAGE_RAM);
     if (err != ESP_OK) {
         return err;
     }
@@ -309,29 +359,12 @@ esp_err_t WifiSta::begin(const char *ssid, const char *password) const
 
     xEventGroupClearBits(s_wifi_event_group, kWifiConnectedBit | kWifiStartedBit);
     ::setLocalIpString("0.0.0.0");
+    ::setConnectRequested(false);
 
-    err = esp_wifi_set_storage(WIFI_STORAGE_FLASH);
-    if (err != ESP_OK) {
+    esp_err_t stop_err = esp_wifi_stop();
+    if (stop_err != ESP_OK && stop_err != ESP_ERR_WIFI_NOT_STARTED) {
         wifi_unlock();
-        return err;
-    }
-
-    wifi_mode_t current_mode = WIFI_MODE_NULL;
-    err = esp_wifi_get_mode(&current_mode);
-    if (err != ESP_OK) {
-        wifi_unlock();
-        return err;
-    }
-
-    const wifi_mode_t target_mode =
-        (current_mode == WIFI_MODE_AP || current_mode == WIFI_MODE_APSTA) ? WIFI_MODE_APSTA : WIFI_MODE_STA;
-    const bool wifi_already_started =
-        s_wifi_state.started || current_mode == WIFI_MODE_AP || current_mode == WIFI_MODE_APSTA;
-
-    err = esp_wifi_set_mode(target_mode);
-    if (err != ESP_OK) {
-        wifi_unlock();
-        return err;
+        return stop_err;
     }
 
     wifi_config_t cfg = {};
@@ -343,52 +376,36 @@ esp_err_t WifiSta::begin(const char *ssid, const char *password) const
     cfg.sta.pmf_cfg.capable = true;
     cfg.sta.pmf_cfg.required = false;
 
+    err = esp_wifi_set_mode(WIFI_MODE_STA);
+    if (err != ESP_OK) {
+        wifi_unlock();
+        return err;
+    }
+
     err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
-    if (err == ESP_OK && !wifi_already_started) {
-        err = esp_wifi_start();
-        if (err == ESP_OK) {
-            s_wifi_state.started = true;
-            const EventBits_t bits = xEventGroupWaitBits(
-                s_wifi_event_group,
-                kWifiStartedBit,
-                pdFALSE,
-                pdFALSE,
-                pdMS_TO_TICKS(kWifiStartTimeoutMs));
-            if ((bits & kWifiStartedBit) == 0) {
-                err = ESP_ERR_TIMEOUT;
-            }
-        }
-    }
-    if (err == ESP_OK && wifi_already_started) {
-        s_wifi_state.started = true;
-        xEventGroupSetBits(s_wifi_event_group, kWifiStartedBit);
+    if (err != ESP_OK) {
+        wifi_unlock();
+        return err;
     }
 
+    err = applyNetifConfig();
+    if (err != ESP_OK) {
+        wifi_unlock();
+        return err;
+    }
+
+    ::setConnectRequested(true);
+
+    err = esp_wifi_start();
     if (err == ESP_OK) {
-        err = applyNetifConfig();
-    }
-
-    if (err == ESP_OK && wifi_already_started) {
-        esp_err_t disconnect_err = esp_wifi_disconnect();
-        if (disconnect_err != ESP_OK &&
-            disconnect_err != ESP_ERR_WIFI_NOT_CONNECT &&
-            disconnect_err != ESP_ERR_WIFI_NOT_STARTED) {
-            err = disconnect_err;
-        }
-    }
-
-    if (err == ESP_OK) {
-        for (uint32_t attempt = 0; attempt < kWifiConnectRetryCount; ++attempt) {
-            err = esp_wifi_connect();
-            if (err != ESP_ERR_WIFI_NOT_STARTED) {
-                break;
-            }
-            xEventGroupWaitBits(
-                s_wifi_event_group,
-                kWifiStartedBit,
-                pdFALSE,
-                pdFALSE,
-                pdMS_TO_TICKS(kWifiConnectRetryDelayMs));
+        const EventBits_t bits = xEventGroupWaitBits(
+            s_wifi_event_group,
+            kWifiStartedBit,
+            pdFALSE,
+            pdFALSE,
+            pdMS_TO_TICKS(kWifiStartTimeoutMs));
+        if ((bits & kWifiStartedBit) == 0) {
+            err = ESP_ERR_TIMEOUT;
         }
     }
 
@@ -407,50 +424,34 @@ esp_err_t WifiSta::clean(void) const
         return ESP_ERR_TIMEOUT;
     }
 
+    ::setConnectRequested(false);
     xEventGroupClearBits(s_wifi_event_group, kWifiConnectedBit);
     ::setLocalIpString("0.0.0.0");
 
-    wifi_mode_t original_mode = WIFI_MODE_NULL;
-    err = esp_wifi_get_mode(&original_mode);
-    if (err != ESP_OK) {
-        wifi_unlock();
-        return err;
-    }
-
-    const wifi_mode_t temporary_mode =
-        (original_mode == WIFI_MODE_AP) ? WIFI_MODE_APSTA :
-        (original_mode == WIFI_MODE_NULL) ? WIFI_MODE_STA :
-        original_mode;
-
-    if (temporary_mode != original_mode) {
-        err = esp_wifi_set_mode(temporary_mode);
-        if (err != ESP_OK) {
-            wifi_unlock();
-            return err;
-        }
-    }
-
     esp_err_t disconnect_err = esp_wifi_disconnect();
-    if (disconnect_err != ESP_OK && disconnect_err != ESP_ERR_WIFI_NOT_CONNECT) {
+    if (disconnect_err != ESP_OK &&
+        disconnect_err != ESP_ERR_WIFI_NOT_CONNECT &&
+        disconnect_err != ESP_ERR_WIFI_NOT_STARTED) {
         err = disconnect_err;
+    }
+
+    esp_err_t stop_err = esp_wifi_stop();
+    if (err == ESP_OK &&
+        stop_err != ESP_OK &&
+        stop_err != ESP_ERR_WIFI_NOT_STARTED) {
+        err = stop_err;
     }
 
     wifi_config_t cfg = {};
     if (err == ESP_OK) {
-        err = esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+        err = esp_wifi_set_mode(WIFI_MODE_STA);
     }
     if (err == ESP_OK) {
         err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
     }
 
-    if (temporary_mode != original_mode) {
-        esp_err_t restore_mode_err = esp_wifi_set_mode(original_mode);
-        if (err == ESP_OK) {
-            err = restore_mode_err;
-        }
-    }
-
     if (err == ESP_OK) {
+        s_wifi_state.started = false;
         s_wifi_state.hostname_set = false;
         s_wifi_state.ip_set = false;
         s_wifi_state.gateway_set = false;
@@ -472,6 +473,7 @@ esp_err_t WifiSta::disconnect(void) const
         return ESP_OK;
     }
 
+    ::setConnectRequested(false);
     xEventGroupClearBits(s_wifi_event_group, kWifiConnectedBit);
     ::setLocalIpString("0.0.0.0");
     esp_err_t err = esp_wifi_disconnect();
@@ -596,6 +598,82 @@ const char *WifiSta::localIP(void) const
     memcpy(ip_copy, s_wifi_state.local_ip, sizeof(ip_copy));
     taskEXIT_CRITICAL(&s_wifi_spinlock);
     return ip_copy;
+}
+
+const char *WifiSta::gatewayIP(void) const
+{
+    static char gateway_copy[kIpv4StringMaxLen] = "0.0.0.0";
+    if (!isConnected() || s_wifi_netif == nullptr) {
+        strncpy(gateway_copy, "0.0.0.0", sizeof(gateway_copy) - 1);
+        gateway_copy[sizeof(gateway_copy) - 1] = '\0';
+        return gateway_copy;
+    }
+
+    esp_netif_ip_info_t ip_info = {};
+    if (esp_netif_get_ip_info(s_wifi_netif, &ip_info) != ESP_OK) {
+        strncpy(gateway_copy, "0.0.0.0", sizeof(gateway_copy) - 1);
+        gateway_copy[sizeof(gateway_copy) - 1] = '\0';
+        return gateway_copy;
+    }
+
+    return ::ip4AddrToString(&ip_info.gw, gateway_copy, sizeof(gateway_copy));
+}
+
+const char *WifiSta::subnetMask(void) const
+{
+    static char subnet_copy[kIpv4StringMaxLen] = "0.0.0.0";
+    if (!isConnected() || s_wifi_netif == nullptr) {
+        strncpy(subnet_copy, "0.0.0.0", sizeof(subnet_copy) - 1);
+        subnet_copy[sizeof(subnet_copy) - 1] = '\0';
+        return subnet_copy;
+    }
+
+    esp_netif_ip_info_t ip_info = {};
+    if (esp_netif_get_ip_info(s_wifi_netif, &ip_info) != ESP_OK) {
+        strncpy(subnet_copy, "0.0.0.0", sizeof(subnet_copy) - 1);
+        subnet_copy[sizeof(subnet_copy) - 1] = '\0';
+        return subnet_copy;
+    }
+
+    return ::ip4AddrToString(&ip_info.netmask, subnet_copy, sizeof(subnet_copy));
+}
+
+const char *WifiSta::dns1(void) const
+{
+    static char dns_copy[kIpv4StringMaxLen] = "0.0.0.0";
+    if (!isConnected() || s_wifi_netif == nullptr) {
+        strncpy(dns_copy, "0.0.0.0", sizeof(dns_copy) - 1);
+        dns_copy[sizeof(dns_copy) - 1] = '\0';
+        return dns_copy;
+    }
+
+    esp_netif_dns_info_t dns = {};
+    if (esp_netif_get_dns_info(s_wifi_netif, ESP_NETIF_DNS_MAIN, &dns) != ESP_OK) {
+        strncpy(dns_copy, "0.0.0.0", sizeof(dns_copy) - 1);
+        dns_copy[sizeof(dns_copy) - 1] = '\0';
+        return dns_copy;
+    }
+
+    return ::ip4AddrToString(&dns.ip.u_addr.ip4, dns_copy, sizeof(dns_copy));
+}
+
+const char *WifiSta::dns2(void) const
+{
+    static char dns_copy[kIpv4StringMaxLen] = "0.0.0.0";
+    if (!isConnected() || s_wifi_netif == nullptr) {
+        strncpy(dns_copy, "0.0.0.0", sizeof(dns_copy) - 1);
+        dns_copy[sizeof(dns_copy) - 1] = '\0';
+        return dns_copy;
+    }
+
+    esp_netif_dns_info_t dns = {};
+    if (esp_netif_get_dns_info(s_wifi_netif, ESP_NETIF_DNS_BACKUP, &dns) != ESP_OK) {
+        strncpy(dns_copy, "0.0.0.0", sizeof(dns_copy) - 1);
+        dns_copy[sizeof(dns_copy) - 1] = '\0';
+        return dns_copy;
+    }
+
+    return ::ip4AddrToString(&dns.ip.u_addr.ip4, dns_copy, sizeof(dns_copy));
 }
 
 WifiSta wifi;

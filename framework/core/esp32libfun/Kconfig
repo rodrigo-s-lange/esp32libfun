@@ -21,7 +21,7 @@ menu "ESP32LIBFUN"
 
     config ESP32LIBFUN_AT_MAX_CMDS
         int "Maximum AT commands"
-        default 48
+        default 16
         depends on ESP32LIBFUN_AT
         range 1 128
         help
@@ -64,11 +64,77 @@ menu "ESP32LIBFUN"
         help
             Builds and exposes esp32libfun_spi.
 
+    config ESP32LIBFUN_ADC
+        bool "Enable ADC module"
+        default y
+        depends on SOC_ADC_SUPPORTED
+        help
+            Builds and exposes esp32libfun_adc.
+            Thin wrapper over the ESP-IDF ADC oneshot driver with optional
+            calibration for millivolt reads.
+
+    config ESP32LIBFUN_GPTIMER
+        bool "Enable GPTimer module"
+        default y
+        depends on SOC_GPTIMER_SUPPORTED
+        help
+            Builds and exposes esp32libfun_gptimer.
+            Thin wrapper over the ESP-IDF general-purpose timer driver.
+
+    config ESP32LIBFUN_RMT
+        bool "Enable RMT module"
+        default y
+        depends on SOC_RMT_SUPPORTED
+        help
+            Builds and exposes esp32libfun_rmt.
+            Thin wrapper over the ESP-IDF RMT TX/RX driver: channel lifecycle,
+            carrier modulation, and byte/raw symbol transmission. Protocol
+            logic (IR framing, WS2812 timing, etc.) belongs in esp_* libraries
+            built on top.
+
+    config ESP32LIBFUN_TWAI
+        bool "Enable TWAI module"
+        default y
+        depends on SOC_TWAI_SUPPORTED
+        help
+            Builds and exposes esp32libfun_twai.
+            Thin wrapper over the ESP-IDF TWAI node driver for CAN-style bus
+            bring-up, loopback testing, frame TX/RX, filters, and status.
+
+    config ESP32LIBFUN_W5500
+        bool "Enable W5500 Ethernet module"
+        default n
+        help
+            Builds and exposes esp32libfun_w5500.
+            This module owns one dedicated SPI bus for the W5500 and wraps the
+            official ESP-IDF Ethernet driver.
+
+    config ESP32LIBFUN_LAN8720
+        bool "Enable LAN8720 Ethernet module"
+        default n
+        depends on ETH_USE_ESP32_EMAC
+        help
+            Builds and exposes esp32libfun_lan8720.
+            This module owns one internal EMAC + LAN87xx PHY path in RMII mode
+            and wraps the official ESP-IDF Ethernet driver.
+
     config ESP32LIBFUN_MCPWM
         bool "Enable MCPWM module"
         default y
         depends on SOC_MCPWM_SUPPORTED
         help
             Builds and exposes esp32libfun_mcpwm.
+
+    config ESP32LIBFUN_WIFI_STA
+        bool "Enable Wi-Fi STA module"
+        default y
+        help
+            Builds and exposes esp32libfun_wifi_sta.
+
+    config ESP32LIBFUN_WEBSERVER
+        bool "Enable webserver module"
+        default y
+        help
+            Builds and exposes esp32libfun_webserver.
 
 endmenu

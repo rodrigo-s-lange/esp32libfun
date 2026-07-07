@@ -1,0 +1,4 @@
+# esp32s3 UART profile with 16 MB flash
+# Use this explicit profile when the S3 console must run on UART0 instead of USB Serial/JTAG.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y

@@ -9,7 +9,8 @@ What it demonstrates:
 - `end()` for full teardown
 - fixed resources with `xTaskCreateStaticPinnedToCore()`
 - short public header with predictable naming
-- Doxygen-ready public API comments
+- `///` briefs plus `@param`/`@return` on every public method, matching the
+  core module convention
 - explicit `TODO rename` markers in the files that need attention first
 
 Typical workflow to create a new library from this template:

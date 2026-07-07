@@ -447,8 +447,7 @@ esp_err_t W5500::applyNetifConfig(void)
     const bool full_static_ip = s_state.ip_set && s_state.gateway_set && s_state.subnet_set;
 
     if (use_static_ip && !full_static_ip) {
-        ESP_LOGE(TAG, "static IP requires ip, gateway and subnet together");
-        return ESP_ERR_INVALID_STATE;
+        return ESP_OK;
     }
 
     if (!full_static_ip) {
@@ -715,26 +714,54 @@ esp_err_t W5500::stop(void) const
         return ESP_OK;
     }
 
-    LockGuard guard(s_mutex);
-    if (!guard.locked()) {
-        return ESP_ERR_TIMEOUT;
+    esp_eth_handle_t eth_handle = nullptr;
+    {
+        LockGuard guard(s_mutex);
+        if (!guard.locked()) {
+            return ESP_ERR_TIMEOUT;
+        }
+
+        if (!s_state.initialized || s_eth_handle == nullptr) {
+            return ESP_OK;
+        }
+
+        if ((xEventGroupGetBits(s_event_group) & kStartedBit) == 0) {
+            return ESP_OK;
+        }
+
+        eth_handle = s_eth_handle;
     }
 
-    if (!s_state.initialized || s_eth_handle == nullptr) {
-        return ESP_OK;
-    }
-
-    if ((xEventGroupGetBits(s_event_group) & kStartedBit) == 0) {
-        return ESP_OK;
-    }
-
-    return esp_eth_stop(s_eth_handle);
+    return (eth_handle != nullptr) ? esp_eth_stop(eth_handle) : ESP_OK;
 }
 
 esp_err_t W5500::end(void) const
 {
     if (ensureSyncPrimitives() != ESP_OK) {
         return ESP_ERR_NO_MEM;
+    }
+
+    esp_eth_handle_t eth_handle = nullptr;
+    bool should_stop = false;
+    {
+        LockGuard guard(s_mutex);
+        if (!guard.locked()) {
+            return ESP_ERR_TIMEOUT;
+        }
+
+        if (!s_state.initialized) {
+            return ESP_OK;
+        }
+
+        eth_handle = s_eth_handle;
+        should_stop = (s_eth_handle != nullptr) && ((xEventGroupGetBits(s_event_group) & kStartedBit) != 0);
+    }
+
+    if (should_stop) {
+        esp_err_t err = esp_eth_stop(eth_handle);
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            return err;
+        }
     }
 
     LockGuard guard(s_mutex);
@@ -744,13 +771,6 @@ esp_err_t W5500::end(void) const
 
     if (!s_state.initialized) {
         return ESP_OK;
-    }
-
-    if (s_eth_handle != nullptr && (xEventGroupGetBits(s_event_group) & kStartedBit) != 0) {
-        esp_err_t err = esp_eth_stop(s_eth_handle);
-        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-            return err;
-        }
     }
 
     cleanupLocked();
@@ -979,6 +999,23 @@ const char *W5500::localIP(void) const
     return ip_copy;
 }
 
+const char *W5500::hostname(void) const
+{
+    static char hostname_copy[kHostnameMaxLen + 1] = {};
+
+    if (s_mutex == nullptr) {
+        return hostname_copy;
+    }
+
+    LockGuard guard(s_mutex);
+    if (!guard.locked()) {
+        return hostname_copy;
+    }
+
+    memcpy(hostname_copy, s_state.hostname, sizeof(hostname_copy));
+    return hostname_copy;
+}
+
 const char *W5500::gateway(void) const
 {
     static char gateway_copy[kIpv4StringMaxLen] = "0.0.0.0";
@@ -1013,6 +1050,66 @@ const char *W5500::subnet(void) const
     return subnet_copy;
 }
 
+int W5500::misoPin(void) const
+{
+    if (s_mutex == nullptr) {
+        return -1;
+    }
+
+    LockGuard guard(s_mutex);
+    return guard.locked() ? s_state.miso_pin : -1;
+}
+
+int W5500::mosiPin(void) const
+{
+    if (s_mutex == nullptr) {
+        return -1;
+    }
+
+    LockGuard guard(s_mutex);
+    return guard.locked() ? s_state.mosi_pin : -1;
+}
+
+int W5500::sclkPin(void) const
+{
+    if (s_mutex == nullptr) {
+        return -1;
+    }
+
+    LockGuard guard(s_mutex);
+    return guard.locked() ? s_state.sclk_pin : -1;
+}
+
+int W5500::csPin(void) const
+{
+    if (s_mutex == nullptr) {
+        return -1;
+    }
+
+    LockGuard guard(s_mutex);
+    return guard.locked() ? s_state.cs_pin : -1;
+}
+
+int W5500::intPin(void) const
+{
+    if (s_mutex == nullptr) {
+        return -1;
+    }
+
+    LockGuard guard(s_mutex);
+    return guard.locked() ? s_state.int_pin : -1;
+}
+
+int W5500::rstPin(void) const
+{
+    if (s_mutex == nullptr) {
+        return -1;
+    }
+
+    LockGuard guard(s_mutex);
+    return guard.locked() ? s_state.rst_pin : -1;
+}
+
 int W5500::host(void) const
 {
     if (s_mutex == nullptr) {
@@ -1031,6 +1128,26 @@ uint32_t W5500::clockHz(void) const
 
     LockGuard guard(s_mutex);
     return guard.locked() ? s_state.clock_hz : DEFAULT_CLOCK_HZ;
+}
+
+size_t W5500::queueSize(void) const
+{
+    if (s_mutex == nullptr) {
+        return DEFAULT_QUEUE_SIZE;
+    }
+
+    LockGuard guard(s_mutex);
+    return guard.locked() ? s_state.queue_size : DEFAULT_QUEUE_SIZE;
+}
+
+uint32_t W5500::pollPeriodMs(void) const
+{
+    if (s_mutex == nullptr) {
+        return DEFAULT_POLL_PERIOD_MS;
+    }
+
+    LockGuard guard(s_mutex);
+    return guard.locked() ? s_state.poll_period_ms : DEFAULT_POLL_PERIOD_MS;
 }
 
 W5500 w5500;
