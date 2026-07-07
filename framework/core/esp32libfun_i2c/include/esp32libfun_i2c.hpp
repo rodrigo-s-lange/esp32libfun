@@ -6,6 +6,11 @@
 #include "esp_err.h"
 #include "soc/soc_caps.h"
 
+#define ESP32LIBFUN_I2C_VERSION "v0.1.0"
+#define ESP32LIBFUN_I2C_VERSION_MAJOR 0
+#define ESP32LIBFUN_I2C_VERSION_MINOR 1
+#define ESP32LIBFUN_I2C_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 constexpr int I2C_ADDR_7BIT = 7;

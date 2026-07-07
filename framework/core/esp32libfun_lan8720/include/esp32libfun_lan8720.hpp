@@ -5,6 +5,11 @@
 
 #include "esp_err.h"
 
+#define ESP32LIBFUN_LAN8720_VERSION "v0.1.0"
+#define ESP32LIBFUN_LAN8720_VERSION_MAJOR 0
+#define ESP32LIBFUN_LAN8720_VERSION_MINOR 1
+#define ESP32LIBFUN_LAN8720_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 constexpr int LAN8720_CLK_EXT_IN = 0;

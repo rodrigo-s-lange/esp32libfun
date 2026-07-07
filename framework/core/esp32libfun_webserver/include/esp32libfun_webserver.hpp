@@ -7,6 +7,11 @@
 
 typedef struct httpd_req httpd_req_t;
 
+#define ESP32LIBFUN_WEBSERVER_VERSION "v0.1.0"
+#define ESP32LIBFUN_WEBSERVER_VERSION_MAJOR 0
+#define ESP32LIBFUN_WEBSERVER_VERSION_MINOR 1
+#define ESP32LIBFUN_WEBSERVER_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 /// HTTP route handler compatible with the ESP-IDF HTTP server.

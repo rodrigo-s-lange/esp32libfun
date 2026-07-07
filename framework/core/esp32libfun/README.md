@@ -22,6 +22,7 @@ Libraries should depend on the specific core modules they use.
 - `ESP32LIBFUN_VERSION_MINOR`
 - `ESP32LIBFUN_VERSION_PATCH`
 - `ESP32LIBFUN_IDF_BASELINE`
+- `ESP32LIBFUN_<MODULE>_VERSION` macros from each enabled module header
 - `esp32libfun_version()`
 - `esp32libfun_major()`
 - `esp32libfun_minor()`

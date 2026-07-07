@@ -14,6 +14,8 @@ dispatches handlers when matching commands arrive.
 This repository is the core HAL foundation: small `esp32libfun_*` components,
 focused examples, and documentation for reusable libraries built on top.
 
+Current framework version: `v0.1.0`.
+
 The official workflow is native ESP-IDF. PlatformIO can be useful for some
 application projects, but this repository treats ESP-IDF CMake as the source of
 truth.

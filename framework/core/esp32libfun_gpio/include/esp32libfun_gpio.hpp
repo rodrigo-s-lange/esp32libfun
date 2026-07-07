@@ -2,6 +2,11 @@
 
 #include "esp_err.h"
 
+#define ESP32LIBFUN_GPIO_VERSION "v0.1.0"
+#define ESP32LIBFUN_GPIO_VERSION_MAJOR 0
+#define ESP32LIBFUN_GPIO_VERSION_MINOR 1
+#define ESP32LIBFUN_GPIO_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 constexpr int INPUT                  = 0;

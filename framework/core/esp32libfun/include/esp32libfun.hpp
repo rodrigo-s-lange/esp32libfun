@@ -75,9 +75,9 @@
 #include "../../esp32libfun_webserver/include/esp32libfun_webserver.hpp"
 #endif
 
-#define ESP32LIBFUN_VERSION "v0.0.0"
+#define ESP32LIBFUN_VERSION "v0.1.0"
 #define ESP32LIBFUN_VERSION_MAJOR 0
-#define ESP32LIBFUN_VERSION_MINOR 0
+#define ESP32LIBFUN_VERSION_MINOR 1
 #define ESP32LIBFUN_VERSION_PATCH 0
 #define ESP32LIBFUN_IDF_BASELINE "v6.0.0"
 
@@ -95,7 +95,7 @@ const char *esp32libfun_minor(void);
 const char *esp32libfun_patch(void);
 /// Returns the full framework version string.
 ///
-/// @return Version string, e.g. `"v0.0.0"`.
+/// @return Version string, e.g. `"v0.1.0"`.
 const char *esp32libfun_version(void);
 
 /// Initializes enabled framework convenience services.

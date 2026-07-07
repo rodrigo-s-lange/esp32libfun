@@ -4,6 +4,11 @@
 
 #include "freertos/FreeRTOS.h"
 
+#define ESP32LIBFUN_DELAY_VERSION "v0.1.0"
+#define ESP32LIBFUN_DELAY_VERSION_MAJOR 0
+#define ESP32LIBFUN_DELAY_VERSION_MINOR 1
+#define ESP32LIBFUN_DELAY_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 /// Small delay helpers built on top of FreeRTOS and ESP-IDF timing primitives.

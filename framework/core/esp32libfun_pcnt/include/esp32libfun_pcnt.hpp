@@ -5,6 +5,11 @@
 
 #include "esp_err.h"
 
+#define ESP32LIBFUN_PCNT_VERSION "v0.1.0"
+#define ESP32LIBFUN_PCNT_VERSION_MAJOR 0
+#define ESP32LIBFUN_PCNT_VERSION_MINOR 1
+#define ESP32LIBFUN_PCNT_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 constexpr int PCNT_RISE = 1;

@@ -31,6 +31,11 @@
 #define K "\033[0m"
 #define W "\033[0m"
 
+#define ESP32LIBFUN_SERIAL_VERSION "v0.1.0"
+#define ESP32LIBFUN_SERIAL_VERSION_MAJOR 0
+#define ESP32LIBFUN_SERIAL_VERSION_MINOR 1
+#define ESP32LIBFUN_SERIAL_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 /// Thin wrapper around the active ESP-IDF console backend.

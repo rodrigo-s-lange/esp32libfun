@@ -4,6 +4,11 @@
 
 #include "esp_err.h"
 
+#define ESP32LIBFUN_WIFI_STA_VERSION "v0.1.0"
+#define ESP32LIBFUN_WIFI_STA_VERSION_MAJOR 0
+#define ESP32LIBFUN_WIFI_STA_VERSION_MINOR 1
+#define ESP32LIBFUN_WIFI_STA_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 /// Thin wrapper around the ESP-IDF Wi-Fi station path.

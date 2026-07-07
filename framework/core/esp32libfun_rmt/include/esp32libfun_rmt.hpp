@@ -5,6 +5,11 @@
 
 #include "esp_err.h"
 
+#define ESP32LIBFUN_RMT_VERSION "v0.1.0"
+#define ESP32LIBFUN_RMT_VERSION_MAJOR 0
+#define ESP32LIBFUN_RMT_VERSION_MINOR 1
+#define ESP32LIBFUN_RMT_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 /// One RMT symbol: two (duration, level) pairs, laid out bit-for-bit like the

@@ -10,6 +10,11 @@
 #define CONFIG_ESP32LIBFUN_AT_MAX_CMDS 16
 #endif
 
+#define ESP32LIBFUN_AT_VERSION "v0.1.0"
+#define ESP32LIBFUN_AT_VERSION_MAJOR 0
+#define ESP32LIBFUN_AT_VERSION_MINOR 1
+#define ESP32LIBFUN_AT_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 /// Handler invoked when a matching AT command is dispatched.

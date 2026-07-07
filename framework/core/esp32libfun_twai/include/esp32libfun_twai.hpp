@@ -5,6 +5,11 @@
 
 #include "esp_err.h"
 
+#define ESP32LIBFUN_TWAI_VERSION "v0.1.0"
+#define ESP32LIBFUN_TWAI_VERSION_MAJOR 0
+#define ESP32LIBFUN_TWAI_VERSION_MINOR 1
+#define ESP32LIBFUN_TWAI_VERSION_PATCH 0
+
 namespace esp32libfun {
 
 static constexpr size_t TWAI_MAX_DATA_LEN = 64;
