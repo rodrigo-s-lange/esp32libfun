@@ -1,17 +1,23 @@
 # Changelog
 
-All notable changes to this framework are recorded here. Versions follow
-[Semantic Versioning](https://semver.org/).
+All notable changes to this framework are recorded here.
+
+**Before `v1.0.0` the framework stays on the `v0.1.x` line and only the patch
+number advances.** Semantic Versioning treats `0.x` as explicitly unstable —
+the public API carries no compatibility promise until the first stable
+release — so the minor number is reserved rather than spent. `v1.0.0` is the
+intended stable milestone (see `docs/architecture.md`); normal semver rules
+begin there.
 
 The framework releases as one unit: `ESP32LIBFUN_VERSION` and every
 component macro (`ESP32LIBFUN_<MODULE>_VERSION`) carry the same version and
 move together on each release, so a build can be identified from any single
 header without cross-referencing which module changed.
 
-## [v0.2.0] - 2026-08-18
+## [v0.1.2] - 2026-08-18
 
-Minor rather than patch: the AT console gains public API. Nothing existing
-changed shape, so upgrading from v0.1.1 requires no code changes.
+The AT console gains public API. Nothing existing changed shape, so upgrading
+from v0.1.1 requires no code changes.
 
 ### Added
 
@@ -74,6 +80,6 @@ First tagged release: core HAL components, the optional AT layer, examples and
 architecture documentation. Version metadata established across the framework
 and its components.
 
-[v0.2.0]: https://github.com/rodrigo-s-lange/esp32libfun/releases/tag/v0.2.0
+[v0.1.2]: https://github.com/rodrigo-s-lange/esp32libfun/releases/tag/v0.1.2
 [v0.1.1]: https://github.com/rodrigo-s-lange/esp32libfun/releases/tag/v0.1.1
 [v0.1.0]: https://github.com/rodrigo-s-lange/esp32libfun/releases/tag/v0.1.0
