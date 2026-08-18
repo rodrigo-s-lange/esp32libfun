@@ -89,7 +89,15 @@ esp_err_t ensureUnit(adc_unit_t unit)
 
     adc_oneshot_unit_init_cfg_t cfg = {};
     cfg.unit_id = unit;
+    // adc_oneshot_clk_src_t aliases a different enum depending on whether the
+    // chip drives ADC oneshot through the RTC controller (ESP32/S2/S3) or
+    // only through the digital controller (e.g. ESP32-C3/C6); each variant
+    // only declares its own *_CLK_SRC_DEFAULT value.
+#if SOC_ADC_RTC_CTRL_SUPPORTED
     cfg.clk_src = ADC_RTC_CLK_SRC_DEFAULT;
+#else
+    cfg.clk_src = ADC_DIGI_CLK_SRC_DEFAULT;
+#endif
     cfg.ulp_mode = ADC_ULP_MODE_DISABLE;
 
     esp_err_t err = adc_oneshot_new_unit(&cfg, &s_adc_units[index].handle);
