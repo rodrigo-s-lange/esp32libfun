@@ -397,6 +397,36 @@ void At::writeLine(const char *fmt, ...) const
     serial.println("%s", buffer);
 }
 
+void At::writeOk(const char *fmt, ...) const
+{
+    char buffer[256];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    serial.println(G "%s" W, buffer);
+}
+
+void At::writeWarn(const char *fmt, ...) const
+{
+    char buffer[256];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    serial.println(Y "%s" W, buffer);
+}
+
+void At::writeAlert(const char *fmt, ...) const
+{
+    char buffer[256];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    serial.println(O "%s" W, buffer);
+}
+
 void At::writeError(const char *fmt, ...) const
 {
     char buffer[256];

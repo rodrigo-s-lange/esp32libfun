@@ -87,11 +87,24 @@ public:
     void version(void) const;
     /// Performs a software reset of the chip.
     void reset(void) const;
-    /// Writes one formatted response line through the AT console.
+    /// Writes one formatted response line through the AT console (neutral color).
     ///
     /// @param fmt `printf`-style format string.
     void writeLine(const char *fmt, ...) const;
-    /// Writes one formatted error response line through the AT console.
+    /// Writes one formatted success line in green. Defaults to "OK".
+    ///
+    /// @param fmt `printf`-style format string; defaults to `"OK"`.
+    void writeOk(const char *fmt = "OK", ...) const;
+    /// Writes one formatted warning line in yellow (a non-fatal caveat).
+    ///
+    /// @param fmt `printf`-style format string.
+    void writeWarn(const char *fmt, ...) const;
+    /// Writes one formatted alert line in orange (accepted, but on the verge of
+    /// being a mistake -- e.g. a value that produces a degenerate result).
+    ///
+    /// @param fmt `printf`-style format string.
+    void writeAlert(const char *fmt, ...) const;
+    /// Writes one formatted error line in red (with an `ERROR:` prefix).
     ///
     /// @param fmt `printf`-style format string.
     void writeError(const char *fmt, ...) const;

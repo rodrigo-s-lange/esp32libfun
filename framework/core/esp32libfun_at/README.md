@@ -45,6 +45,10 @@ CONFIG_ESP32LIBFUN_AT_MAX_CMDS=16
 - `at.help()`: prints the built-in and registered command list.
 - `at.version()`: prints the framework version.
 - `at.writeLine(fmt, ...)`: prints one response line.
+- `at.writeOk(fmt, ...)`: prints one green success line; defaults to `OK`.
+- `at.writeWarn(fmt, ...)`: prints one yellow non-fatal warning line.
+- `at.writeAlert(fmt, ...)`: prints one orange alert for accepted but risky or
+  degenerate input.
 - `at.writeError(fmt, ...)`: prints one error response line.
 
 ## Console Notes
@@ -79,14 +83,14 @@ void atPing(const char *args)
     } else {
         at.writeLine("PONG");
     }
-    at.writeLine(G "OK");
+    at.writeOk();
 }
 
 void atCount(const char *args)
 {
     (void) args;
     at.writeLine("CMDS=%u", static_cast<unsigned>(at.commandCount()));
-    at.writeLine(G "OK");
+    at.writeOk();
 }
 
 void atUnregister(const char *args)
@@ -97,7 +101,7 @@ void atUnregister(const char *args)
     }
 
     if (at.unregisterCmd(args) == ESP_OK) {
-        at.writeLine(G "OK");
+        at.writeOk();
         return;
     }
 
@@ -135,7 +139,7 @@ extern "C" void app_main(void)
 static void wifiEnable(const char *args)
 {
     (void) args;
-    at.writeLine(G "OK");
+    at.writeOk();
 }
 
 static AtRegistrar wifi_enable("AT+WIFIEN", wifiEnable, "Enable Wi-Fi");
