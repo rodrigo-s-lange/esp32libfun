@@ -1,10 +1,12 @@
 # Changelog
 
 All notable changes to this framework are recorded here. Versions follow
-[Semantic Versioning](https://semver.org/). Component-level version macros
-(`ESP32LIBFUN_<MODULE>_VERSION`) are bumped only for the modules a release
-actually changes; the aggregate `ESP32LIBFUN_VERSION` tracks the framework
-release itself.
+[Semantic Versioning](https://semver.org/).
+
+The framework releases as one unit: `ESP32LIBFUN_VERSION` and every
+component macro (`ESP32LIBFUN_<MODULE>_VERSION`) carry the same version and
+move together on each release, so a build can be identified from any single
+header without cross-referencing which module changed.
 
 ## [v0.1.1] - 2026-08-14
 

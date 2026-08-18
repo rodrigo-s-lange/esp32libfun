@@ -8,10 +8,10 @@
 
 #include "../../esp32libfun_spi/include/esp32libfun_spi.hpp"
 
-#define ESP32LIBFUN_W5500_VERSION "v0.1.0"
+#define ESP32LIBFUN_W5500_VERSION "v0.1.1"
 #define ESP32LIBFUN_W5500_VERSION_MAJOR 0
 #define ESP32LIBFUN_W5500_VERSION_MINOR 1
-#define ESP32LIBFUN_W5500_VERSION_PATCH 0
+#define ESP32LIBFUN_W5500_VERSION_PATCH 1
 
 namespace esp32libfun {
 
