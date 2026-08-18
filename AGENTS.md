@@ -7,9 +7,10 @@ Instructions for AI agents working in the `esp32libfun` repository.
 1. `README.md` — project scope and core feature list
 2. `docs/architecture.md` — layering, framework boundary, runtime model
 3. `docs/style-guide.md` — naming, API, and documentation rules
-4. `docs/rag-guide.md` — core terms, read order for specific tasks, agent rules
+4. `docs/vibe_coding.md` — AI-assisted development model and task briefing
 
-Read the target component's header and `README.md` before editing it.
+Then use `docs/rag-guide.md` to find any task-specific documents. Read the
+target component's header and `README.md` before editing it.
 
 ## Project Model
 

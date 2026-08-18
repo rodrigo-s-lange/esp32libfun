@@ -37,10 +37,11 @@ This repository owns:
 - `docs/`: architecture, style, and core usage documentation.
 - `main/`: a small validation application.
 
-This repository does not own device libraries such as sensors, displays,
-keypads, actuators, or product-specific behavior. Those belong in separate
-`esp_*` repositories and should depend on the specific `esp32libfun_*` modules
-they use.
+Reusable `esp_*` libraries may live under `framework/libs/` while they are
+being validated with the core, but their source of truth is a separate
+`esp_*` repository. Device libraries such as sensors, displays, keypads,
+actuators, or product-specific behavior should depend on the specific
+`esp32libfun_*` modules they use.
 
 ## The Idea In Code
 
@@ -157,6 +158,7 @@ Buildable examples live under `examples/basic/`:
 - `spi_txrx`
 - `adc_oneshot`
 - `gptimer_tick`
+- `mcpwm_servo`
 - `pcnt_ledc_counter`
 - `rmt_ir_tx`
 - `twai_loopback`
@@ -166,7 +168,8 @@ Buildable examples live under `examples/basic/`:
 - Keep the core small and stable.
 - Keep device behavior in separate `esp_*` library repositories.
 - Prefer thin wrappers over ESP-IDF instead of reimplementing SDK drivers.
-- Read `AGENTS.md`, `docs/architecture.md`, `docs/style-guide.md`, and `docs/vibe_coding.md` before large changes.
+- Start with `AGENTS.md`; it defines the required reading and routes
+  task-specific documentation.
 
 ## License
 

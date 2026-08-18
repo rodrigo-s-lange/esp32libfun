@@ -1,221 +1,44 @@
-# esp32libfun Vibe Coding
+# AI-Assisted Work Brief
 
-This document exists to make AI-assisted work inside `esp32libfun` more
-predictable.
+This is the compact briefing model for AI-assisted work. It does not repeat
+project rules: `AGENTS.md` is authoritative and `docs/rag-guide.md` routes the
+task-specific context.
 
-The goal is not to replace the project docs. The goal is to give a fast prompt
-surface for humans and LLMs that need to start useful work quickly.
-
-Read these files first:
-
-- `AGENTS.md`
-- `README.md`
-- `docs/architecture.md`
-- `docs/style-guide.md`
-- `docs/rag-guide.md`
-
-## When To Use This Doc
-
-Use this document when you want to:
-
-- ask an AI to create an application inside this repository
-- ask an AI to design a new external `esp_*` library
-- ask an AI to refactor code without breaking the project architecture
-
-## Project Mental Model
-
-Keep this model explicit in the prompt:
-
-- `framework/core/esp32libfun_*` = thin core modules over ESP-IDF
-- external `esp_*` repositories = device and higher-level libraries
-- the core stays small and pragmatic
-- `esp_*` libraries build on the core, not on the `esp32libfun` aggregator
-- `esp_component_template` is the starting point for new `esp_*` libraries
-- `esp_example_reference` is a renamed instantiation of the template kept only
-  for reading; it is not core and not something to depend on or extend
-
-Important rules:
-
-- prefer short, readable wrappers
-- do not invent large subsystems without strong justification
-- preserve the naming and structure already present in the repo
-- check the existing core modules before creating new code
-- reuse an existing sibling `esp_*` library as a behavioral reference when one is available and its transport matches; do not invent one if none is available
-- treat shared resources as concurrent by default
-- expect multiple tasks or cores to touch global wrappers unless the code clearly proves otherwise
-- ESP-IDF 6.0 is the baseline
-- no exceptions
-- no RTTI
-- avoid heap in the core
-- do not edit `sdkconfig` as the first choice
-- prefer `sdkconfig.defaults` when changing repository defaults
-- shared state and shared hardware access must be serialized by the component that owns them
-- before adding GPIO-adjacent code, check whether `esp32libfun_gpio`, `esp32libfun_ledc`, `esp32libfun_pcnt`, or `esp32libfun_mcpwm` already solve the problem
-
-## Prompt Template: Create An Application
-
-Use this when the goal is to build or modify application code in `main/`.
+## Minimum Useful Brief
 
 ```text
-You are working inside the esp32libfun repository.
-
-Before proposing or editing code, read these files:
-- AGENTS.md
-- README.md
-- docs/architecture.md
-- docs/style-guide.md
-
-Project model:
-- `framework/core/esp32libfun_*` = thin core modules over ESP-IDF
-- external `esp_*` repositories = device and higher-level libraries
-- prefer short, pragmatic wrappers
-- preserve the style and naming already used in the project
-- ESP-IDF 6.0 is the baseline
-- no exceptions, no RTTI
-- avoid heap in the core
-
-Architecture rules:
-- use the core directly when the need is simple
-- use an external `esp_*` library when device behavior deserves its own repository
-- `esp_*` must not depend on the `esp32libfun` aggregator as a required dependency
-- for predictable behavior, prefer manual control before hidden automation
-- before adding code, inspect the existing core modules and prefer reusing them
-- do not patch `sdkconfig` unless the task explicitly requires a local machine-specific change
-- when the code touches shared state or global wrappers, preserve or add internal synchronization instead of assuming single-threaded use
-
 Task:
-[describe the application here]
+- What should be created, changed, reviewed, or diagnosed?
 
-Hardware:
-- target: [example: ESP32-C3]
-- pins: [list]
-- connected peripherals: [list]
-- transport: [GPIO/I2C/SPI/UART/etc]
+Scope:
+- Application, core, AT sidecar, external esp_* library, or documentation?
+- Which files/components are in scope?
 
-Expected result:
-- [describe the final behavior]
-- [describe logs, callbacks, endpoints, commands, etc]
-
-Restrictions:
-- [example: edit main/main.cpp only]
-- [example: no Wi-Fi]
-- [example: no internal task]
-- [example: use an external button library]
-- [example: use manual polling]
-
-When answering:
-- first summarize the architecture you understood from the repository
-- then propose the smallest correct path
-- follow existing project patterns instead of inventing new ones
-```
-
-## Prompt Template: Create A New Library
-
-Use this when the goal is to create a new external `esp_*` library repository.
-
-```text
-You are working inside the esp32libfun repository.
-
-Before proposing or editing code, read these files:
-- AGENTS.md
-- README.md
-- docs/architecture.md
-- docs/style-guide.md
-- framework/libs/esp_component_template/README.md
-- framework/libs/esp_component_template/include/esp_component_template.hpp
-- framework/libs/esp_component_template/esp_component_template.cpp
-- framework/libs/esp_example_reference/README.md (a renamed instantiation of
-  the template, kept only as a reading reference)
-- if a sibling `esp_*` repository with the same transport or runtime pattern
-  is available, read it too; do not invent one if none is available
-
-Project model:
-- `framework/core/esp32libfun_*` = thin core modules over ESP-IDF
-- external `esp_*` repositories = device and higher-level libraries
-- new libraries belong in their own repositories
-- the core must stay small and stable
-
-Rules for the new library:
-- start from `esp_component_template`, not from `esp_example_reference`
-- if a sibling library with the same core dependency is available, inspect it before designing transport ownership
-- rename namespace, class, header, source, callback alias, and global object correctly
-- keep the public header small, with `///` + `@param`/`@return` on every public method, matching the core module style
-- depend only on the specific core modules that the library actually uses
-- do not depend on the `esp32libfun` aggregator as a required dependency
-- do not make the library own shared transports unless the existing project pattern already does that
-- if the library keeps mutable state or exposes an optional task, protect that state explicitly
-- treat callbacks and background tasks as concurrent access paths unless proven otherwise
-- if the library has manual and managed modes, prefer `init()/start()/stop()/end()`
-- if managed runtime does not help, keep the API direct and pragmatic
-- AT support must stay optional
-- do not edit `sdkconfig` as part of normal library creation
-
-New library:
-- name: [example: esp_example_sensor]
-- purpose: [describe]
-- hardware: [describe]
-- transport: [I2C/SPI/UART/GPIO/etc]
-- core dependencies: [list]
-
-Desired API:
-- [list the methods you want]
-- [say whether you want a global object]
-- [say whether you want callbacks, polling, optional task, etc]
-
-Expected result:
-- component compiling
-- correct CMake integration
-- coherent header and source
-- one small usage example
-- no architecture regression
-
-When answering:
-- first say which layer the library belongs to and why
-- then propose the public API
-- then implement it from the existing template
-- if there is doubt between core and `esp_*`, prefer `esp_*`
-```
-
-## Prompt Template: Refactor Without Breaking Architecture
-
-Use this when the repository already has code, but the structure or naming needs
-to improve.
-
-```text
-You are working inside the esp32libfun repository.
-
-Before proposing or editing code, read these files:
-- AGENTS.md
-- README.md
-- docs/architecture.md
-- docs/style-guide.md
-
-Task:
-[describe the refactor here]
+Expected behavior:
+- What observable result defines success?
+- What errors and boundary cases matter?
 
 Constraints:
-- preserve the project architecture
-- preserve public behavior unless the change explicitly updates the API
-- do not move code into the core unless it clearly belongs there
-- prefer smaller and more predictable naming
-- keep examples and docs aligned with the real API
+- Public API compatibility?
+- Memory, concurrency, timing, or allocation limits?
+- Files or behavior that must not change?
 
-When answering:
-- first explain what layer the code belongs to now
-- then explain the minimal safe refactor
-- then update docs if the change affects project conventions
+Hardware (only when relevant):
+- Target, peripherals, pins, and transport.
+
+Verification:
+- Build target, automated tests, hardware checks, or review criteria.
 ```
 
-## Good Inputs For Any AI
+## Additional Context by Task
 
-A good prompt should always include:
+- **New `esp_*` library:** name, purpose, transport, core dependencies,
+  ownership model, and whether manual/managed/AT modes are required.
+- **Application:** target behavior and board-specific wiring.
+- **Refactor:** behavior/API that must remain unchanged.
+- **Review:** desired depth and whether findings should be fixed or only
+  reported.
 
-- target chip
-- pins
-- connected hardware
-- expected behavior
-- runtime constraints
-- whether the change belongs in `main/`, the core, or `framework/libs/`
-
-Good prompts reduce wrong assumptions and make the generated code closer to the
-real project style.
+Do not copy the repository's architecture rules into every prompt. Point the
+agent to `AGENTS.md`, provide the task-specific facts above, and let the local
+documents supply the stable context.
