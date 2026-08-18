@@ -83,3 +83,13 @@ Desktop.ini
 .vscode/
 .claude/
 tools/
+
+# Local lab libs validated against the core; each esp_* lib has its own repo.
+/framework/libs/esp_*/
+!/framework/libs/esp_component_template/
+!/framework/libs/esp_example_reference/
+/examples/basic/infrared_link/
+/examples/basic/pixels_chase/
+/examples/basic/pixels_fx_demo/
+/examples/basic/pixels_fx_test/
+/examples/basic/pixels_composer_test/
