@@ -6,10 +6,10 @@
 #include "esp_err.h"
 #include "soc/soc_caps.h"
 
-#define ESP32LIBFUN_I2C_VERSION "v0.1.1"
+#define ESP32LIBFUN_I2C_VERSION "v0.2.0"
 #define ESP32LIBFUN_I2C_VERSION_MAJOR 0
-#define ESP32LIBFUN_I2C_VERSION_MINOR 1
-#define ESP32LIBFUN_I2C_VERSION_PATCH 1
+#define ESP32LIBFUN_I2C_VERSION_MINOR 2
+#define ESP32LIBFUN_I2C_VERSION_PATCH 0
 
 namespace esp32libfun {
 

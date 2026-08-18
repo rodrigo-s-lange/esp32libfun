@@ -355,7 +355,7 @@ A module is ready to be considered part of the official experience when it is:
 
 ## Version Reference
 
-- current version: `v0.1.1`
+- current version: `v0.2.0`
 - next milestone: `v1.0.0`
 - intended stable milestone: `v1.0.0`
 
