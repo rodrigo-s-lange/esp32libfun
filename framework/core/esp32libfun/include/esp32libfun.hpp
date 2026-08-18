@@ -75,10 +75,10 @@
 #include "../../esp32libfun_webserver/include/esp32libfun_webserver.hpp"
 #endif
 
-#define ESP32LIBFUN_VERSION "v0.1.0"
+#define ESP32LIBFUN_VERSION "v0.1.1"
 #define ESP32LIBFUN_VERSION_MAJOR 0
 #define ESP32LIBFUN_VERSION_MINOR 1
-#define ESP32LIBFUN_VERSION_PATCH 0
+#define ESP32LIBFUN_VERSION_PATCH 1
 #define ESP32LIBFUN_IDF_BASELINE "v6.0.0"
 
 /// Returns the framework major version as text.
