@@ -353,6 +353,14 @@ A module is ready to be considered part of the official experience when it is:
 - validated on hardware
 - pleasant to use from real application code
 
+## Planned
+
+- **OTA (over-the-air firmware update).** Not implemented yet: no
+  `esp32libfun_ota` module exists, and the partition table is currently
+  single-app (no `ota_0`/`ota_1`/`otadata` slots). Whether OTA belongs in
+  the core as a generic module or lives entirely in application code above
+  it is still undecided; resolve that before starting implementation.
+
 ## Version Reference
 
 - current version: `v0.1.2`
