@@ -1,0 +1,41 @@
+name: ci
+
+# Build-only CI (MVP-01/#64): compiles every basic example for
+# ESP32-WROOM-32 (the ES32-2C's MCU, the only SKU today) via the official
+# ESP-IDF Docker image, pinned to the version this repository's own
+# AGENTS.md declares as the baseline ("ESP-IDF 6.0 is the baseline. No
+# exceptions."). No hardware runner: this catches compile errors (a missing
+# include, a header/impl mismatch), not on-target behavior. There is no
+# on-target test suite in this repository to run here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+          - examples/basic/gpio_blink
+          - examples/basic/adc_oneshot
+          - examples/basic/ledc_fade
+          - examples/basic/pcnt_ledc_counter
+          - examples/basic/mcpwm_servo
+          - examples/basic/i2c_scanner
+          - examples/basic/spi_txrx
+          - examples/basic/rmt_ir_tx
+          - examples/basic/gptimer_tick
+          - examples/basic/twai_loopback
+          - examples/basic/serial_at
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ${{ matrix.example }} for ESP32-WROOM-32
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.0
+          target: esp32
+          path: ${{ matrix.example }}
