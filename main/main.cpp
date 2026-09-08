@@ -1,37 +1,58 @@
 #include "esp32libfun.hpp"
+#include "esp_pixels.hpp"
+#include "esp_pixels_composer.hpp"
+#include "esp_pixels_composer_adapter_esp_pixels.hpp"
 
-constexpr int WsPin = 43;
-constexpr uint32_t WsResolutionHz = 10000000; // 10MHz -> 100ns per tick
-constexpr uint32_t RepeatMs = 500;
+namespace composer = esp_pixels_composer;
+namespace adapter = esp_pixels_composer_adapter_esp_pixels;
 
-// WS2812-style bit timing: bit0 = 400ns high / 800ns low, bit1 = 800ns high / 400ns low.
-constexpr rmt_symbol_t Bit0 = {.duration0 = 4, .level0 = 1, .duration1 = 8, .level1 = 0};
-constexpr rmt_symbol_t Bit1 = {.duration0 = 8, .level0 = 1, .duration1 = 4, .level1 = 0};
+namespace {
 
-// One pixel, GRB order, black (all zero bits) -- scope test only, no LED expected to light.
-constexpr uint8_t Pixel[] = {0x00, 0x00, 0x00};
+// Physical bench: ESP32-WROOM-32, GPIO16, one WS2812 strip of 50 pixels, GRB.
+constexpr int kPixelPin = 16;
+constexpr uint16_t kPixelCount = 50;
 
-// Reset/latch: hold the line low for 80us so the strip commits the frame.
-constexpr rmt_symbol_t ResetSymbol = {.duration0 = 400, .level0 = 0, .duration1 = 400, .level1 = 0};
+} // namespace
 
 extern "C" void app_main(void)
 {
     esp32libfun_init();
 
-    ESP_ERROR_CHECK(serial.at(true));
+    // Static, not stack-local (Task 6C): sink/comp must outlive app_main()'s
+    // own return -- the managed runtime now owns the render role via its own
+    // task (Composer::start(), Design v2 §9), so app_main() no longer needs
+    // to block forever in a loop just to keep them alive by scope. Composer/
+    // EspPixelsSink are both non-copyable/non-movable and own heap for as
+    // long as they stay built/configured, same convention as every other
+    // long-lived instance in this codebase (e.g. the global `pixels`).
+    static adapter::EspPixelsSink sink;
+    static composer::Composer comp;
 
-    ESP_ERROR_CHECK(rmt.beginTx(WsPin, WsResolutionHz));
-    ESP_ERROR_CHECK(rmt.bits(WsPin, Bit0, Bit1));
+    // The adapter is the sole owner of pixels' physical configuration
+    // (Design v2 §9): it calls pixels.beginRaw() internally. Neither
+    // pixels.at(true) nor esp_pixels_fx::player.at(true) are enabled here --
+    // both sidecars would control a different transport/effect object than
+    // the one Composer actually drives through this adapter, and would only
+    // conflict with it.
+    ESP_ERROR_CHECK(sink.init(pixels, kPixelPin, kPixelCount, PixelOrder::GRB, false));
+    ESP_ERROR_CHECK(comp.build(sink));
 
-    serial.println(M "Hello from ESP32LibFun!");
-    serial.println(B "RMT WS2812 1-pixel proof of concept");
-    serial.println(C "Output pin=%d resolution=%luHz", WsPin, static_cast<unsigned long>(WsResolutionHz));
-    serial.println(C "Pixel (GRB): 0x%02X 0x%02X 0x%02X (black, all bit0)", Pixel[0], Pixel[1], Pixel[2]);
-    serial.println(C "Scope: expect 24x bit0 pulses (~400ns high/800ns low), then >=80us low reset");
+    // AT owns the control role from here on (AT+SEGSET/AT+SEGCOL/AT+SEGPUB
+    // over the console) -- app_main() itself never
+    // calls addSegment()/applyConfig() again after this point. The initial
+    // configuration is deliberately empty (nothing staged or published yet):
+    // Design v2 §9 treats that as a routine, valid state, not a failure --
+    // the managed task below simply renders nothing until an AT+SEGPUB (or
+    // equivalent) sequence publishes the first real configuration, which it
+    // then adopts automatically on its own next frame attempt, with no
+    // further action needed here.
+    ESP_ERROR_CHECK(comp.at(true));
 
-    while (true) {
-        ESP_ERROR_CHECK(rmt.write(WsPin, Pixel, sizeof(Pixel)));
-        ESP_ERROR_CHECK(rmt.writeSymbols(WsPin, &ResetSymbol, 1));
-        delay.ms(RepeatMs);
-    }
+    // Composer owns the render role from here on: start() creates its own
+    // managed task (Design v2 §9), which calls the same internal render
+    // path app_main() used to call manually in a loop, at its own paced
+    // cadence, reading whatever configuration AT has published so far.
+    // app_main() has nothing left to do -- it returns, and the managed task
+    // (plus the AT console task) keep the board running.
+    ESP_ERROR_CHECK(comp.start());
 }
