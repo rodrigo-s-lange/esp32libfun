@@ -716,18 +716,18 @@ esp_err_t Spi::at(bool enable) const
             return ESP_OK;
         }
 
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIBUS", atSpiBusSet, "SPI bus init: <sclk>,<mosi>[,<miso>[,<port>[,<max_transfer>]]]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIBUS?", atSpiBusGet, "SPI bus state: AT+SPIBUS?<port>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIBUSOFF", atSpiBusOff, "SPI bus end: <port>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIADD", atSpiAdd, "SPI add device: <cs>,<clock>[,<mode>[,<port>[,<queue_size>]]]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIDEV?", atSpiDevGet, "SPI device state: AT+SPIDEV?<cs>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIREMOVE", atSpiRemove, "SPI remove device: <cs>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPICMD", atSpiCmd, "SPI command byte: <cs>,<value>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIWRITE", atSpiWrite, "SPI write bytes: <cs>,<hex>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIREAD", atSpiRead, "SPI read bytes: <cs>,<len>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPITXRX", atSpiTxRx, "SPI full-duplex transfer: <cs>,<hex>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIREGWRITE", atSpiRegWrite, "SPI register write: <cs>,<reg>,<hex>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIREGREAD", atSpiRegRead, "SPI register read: <cs>,<reg>[,<len>[,<port>]]"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIBUS", atSpiBusSet, "SPI bus init: <sclk>,<mosi>[,<miso>[,<port>[,<max_transfer>]]]", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIBUS?", atSpiBusGet, "SPI bus state: AT+SPIBUS?<port>", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIBUSOFF", atSpiBusOff, "SPI bus end: <port>", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIADD", atSpiAdd, "SPI add device: <cs>,<clock>[,<mode>[,<port>[,<queue_size>]]]", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIDEV?", atSpiDevGet, "SPI device state: AT+SPIDEV?<cs>[,<port>]", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIREMOVE", atSpiRemove, "SPI remove device: <cs>[,<port>]", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPICMD", atSpiCmd, "SPI command byte: <cs>,<value>[,<port>]", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIWRITE", atSpiWrite, "SPI write bytes: <cs>,<hex>[,<port>]", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIREAD", atSpiRead, "SPI read bytes: <cs>,<len>[,<port>]", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPITXRX", atSpiTxRx, "SPI full-duplex transfer: <cs>,<hex>[,<port>]", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIREGWRITE", atSpiRegWrite, "SPI register write: <cs>,<reg>,<hex>[,<port>]", "SPI"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SPIREGREAD", atSpiRegRead, "SPI register read: <cs>,<reg>[,<len>[,<port>]]", "SPI"));
         s_spi_at_enabled = true;
         return ESP_OK;
     }

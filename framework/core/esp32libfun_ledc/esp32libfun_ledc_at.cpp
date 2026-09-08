@@ -408,13 +408,13 @@ esp_err_t Ledc::at(bool enable) const
             return ESP_OK;
         }
 
-        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDC", atLedcPercent, "LEDC duty percent: <pin>,<percent>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDC?", atLedcGet, "LEDC state: AT+LEDC?<pin>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDCCFG", atLedcCfg, "LEDC config: <pin>,<freq>[,<res>[,<channel>[,<invert>]]]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDCDUTY", atLedcDuty, "LEDC raw duty: <pin>,<raw_duty>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDCFREQ", atLedcFreq, "LEDC frequency: <pin>,<freq>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDCFADE", atLedcFade, "LEDC fade: <pin>,<percent>,<ms>[,<wait>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDCOFF", atLedcOff, "LEDC off: <pin>"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDC", atLedcPercent, "LEDC duty percent: <pin>,<percent>", "ESP32LIBFUN_LEDC"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDC?", atLedcGet, "LEDC state: AT+LEDC?<pin>", "ESP32LIBFUN_LEDC"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDCCFG", atLedcCfg, "LEDC config: <pin>,<freq>[,<res>[,<channel>[,<invert>]]]", "ESP32LIBFUN_LEDC"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDCDUTY", atLedcDuty, "LEDC raw duty: <pin>,<raw_duty>", "ESP32LIBFUN_LEDC"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDCFREQ", atLedcFreq, "LEDC frequency: <pin>,<freq>", "ESP32LIBFUN_LEDC"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDCFADE", atLedcFade, "LEDC fade: <pin>,<percent>,<ms>[,<wait>]", "ESP32LIBFUN_LEDC"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+LEDCOFF", atLedcOff, "LEDC off: <pin>", "ESP32LIBFUN_LEDC"));
         s_ledc_at_enabled = true;
         return ESP_OK;
     }

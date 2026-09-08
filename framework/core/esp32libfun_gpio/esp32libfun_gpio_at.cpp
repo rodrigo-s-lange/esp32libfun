@@ -211,10 +211,10 @@ esp_err_t Gpio::at(bool enable) const
             return ESP_OK;
         }
 
-        ESP_ERROR_CHECK(::at.registerCmd("AT+GPIO", atGpioWrite, "GPIO write: <pin>,<0|1>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+GPIO?", atGpioRead, "GPIO state: AT+GPIO?<pin>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+GPIOTOGGLE", atGpioToggle, "GPIO toggle: <pin>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+GPIOCFG", atGpioCfg, "GPIO config: <pin>,<mode>"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+GPIO", atGpioWrite, "GPIO write: <pin>,<0|1>", "ESP32LIBFUN_GPIO"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+GPIO?", atGpioRead, "GPIO state: AT+GPIO?<pin>", "ESP32LIBFUN_GPIO"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+GPIOTOGGLE", atGpioToggle, "GPIO toggle: <pin>", "ESP32LIBFUN_GPIO"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+GPIOCFG", atGpioCfg, "GPIO config: <pin>,<mode>", "ESP32LIBFUN_GPIO"));
         s_gpio_at_enabled = true;
         return ESP_OK;
     }

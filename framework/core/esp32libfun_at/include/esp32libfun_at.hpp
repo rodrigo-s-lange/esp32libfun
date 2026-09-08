@@ -27,6 +27,7 @@ struct at_command_t {
     const char *command;
     at_handler_t handler;
     const char *help;
+    const char *library;
 };
 
 /// Fixed-size AT command registry plus serial-backed console task.
@@ -35,6 +36,7 @@ public:
     static constexpr size_t MAX_COMMANDS = CONFIG_ESP32LIBFUN_AT_MAX_CMDS;
     static constexpr size_t MAX_COMMAND_LEN = 24;
     static constexpr size_t MAX_HELP_LEN = 96;
+    static constexpr size_t MAX_LIBRARY_LEN = 24;
 
     /// Initializes the AT registry and synchronization primitives.
     ///
@@ -67,10 +69,13 @@ public:
     ///
     /// @param command Command string, e.g. `"AT+GPIO"`.
     /// @param handler Function invoked when the command matches.
-    /// @param help Optional help text shown by `AT+HELP?`.
+    /// @param help Optional command description stored with the registry entry.
+    /// @param library Optional AT library name shown once by `AT+HELP?` while
+    ///         at least one command from that library remains registered.
     /// @return `ESP_OK` on success, or an `esp_err_t` describing the failure
     ///         (e.g. `ESP_ERR_NO_MEM` when the registry is full).
-    esp_err_t registerCmd(const char *command, at_handler_t handler, const char *help = nullptr);
+    esp_err_t registerCmd(const char *command, at_handler_t handler, const char *help = nullptr,
+                          const char *library = nullptr);
     /// Removes a previously registered command.
     ///
     /// @param command Command string to remove.
@@ -81,7 +86,7 @@ public:
     ///
     /// @return Current number of registered commands.
     [[nodiscard]] size_t commandCount(void) const;
-    /// Prints the built-in and registered command list.
+    /// Prints the built-in core commands and the active AT library index.
     void help(void) const;
     /// Prints the framework version through the AT console.
     void version(void) const;
@@ -125,17 +130,19 @@ extern At at;
 ///
 /// @code
 /// // esp_wifi.cpp
-/// static AtRegistrar wifi_en { "WIFI+EN", [](const char*) { wifi.enable(); } };
-/// static AtRegistrar wifi_dis{ "WIFI+DIS", [](const char*) { wifi.disable(); } };
+/// static AtRegistrar wifi_en { "AT+WIFI+EN", [](const char*) { wifi.enable(); }, nullptr, "WIFI" };
+/// static AtRegistrar wifi_dis{ "AT+WIFI+DIS", [](const char*) { wifi.disable(); }, nullptr, "WIFI" };
 /// @endcode
 struct AtRegistrar {
     /// Registers `command` with `handler` at static-init time.
     ///
     /// @param command Command string, e.g. `"AT+WIFI+EN"`.
     /// @param handler Captureless-lambda-compatible handler function.
-    /// @param help Optional help text shown by `AT+HELP?`.
-    AtRegistrar(const char *command, at_handler_t handler, const char *help = nullptr) {
-        at.registerCmd(command, handler, help);
+    /// @param help Optional command description stored with the registry entry.
+    /// @param library Optional AT library name shown by `AT+HELP?`.
+    AtRegistrar(const char *command, at_handler_t handler, const char *help = nullptr,
+                const char *library = nullptr) {
+        at.registerCmd(command, handler, help, library);
     }
 };
 

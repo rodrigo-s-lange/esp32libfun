@@ -22,6 +22,8 @@ struct StoredAtCommand {
     at_handler_t handler = nullptr;
     bool has_help = false;
     char help[At::MAX_HELP_LEN + 1] = {};
+    bool has_library = false;
+    char library[At::MAX_LIBRARY_LEN + 1] = {};
 };
 
 StoredAtCommand s_commands[At::MAX_COMMANDS] = {};
@@ -62,6 +64,35 @@ bool copyString(char *dst, size_t dst_len, const char *src)
 
     memcpy(dst, src, len + 1);
     return true;
+}
+
+bool printLibraryHelp(const char *library)
+{
+    if (library == nullptr || library[0] == '\0' || !at_lock()) {
+        return false;
+    }
+
+    bool found = false;
+    for (size_t i = 0; i < s_command_count; ++i) {
+        if (!s_commands[i].used || !s_commands[i].has_library ||
+            strcmp(s_commands[i].library, library) != 0) {
+            continue;
+        }
+
+        if (!found) {
+            serial.println(O "%s commands:", library);
+            found = true;
+        }
+        if (s_commands[i].has_help) {
+            serial.println(C "  %-16s" M " %s", s_commands[i].command,
+                           s_commands[i].help);
+        } else {
+            serial.println(C "  %s", s_commands[i].command);
+        }
+    }
+
+    at_unlock();
+    return found;
 }
 
 void atTask(void *arg)
@@ -258,11 +289,23 @@ esp_err_t At::feedLine(const char *line)
         at_unlock();
     }
 
+    const size_t line_length = strlen(line);
+    if (line_length > 4 && line_length <= MAX_LIBRARY_LEN + 4 &&
+        strncmp(line, "AT+", 3) == 0 && line[line_length - 1] == '?') {
+        char library[MAX_LIBRARY_LEN + 1] = {};
+        const size_t library_length = line_length - 4;
+        memcpy(library, line + 3, library_length);
+        if (printLibraryHelp(library)) {
+            return ESP_OK;
+        }
+    }
+
     writeError("unknown command");
     return ESP_ERR_NOT_FOUND;
 }
 
-esp_err_t At::registerCmd(const char *command, at_handler_t handler, const char *help)
+esp_err_t At::registerCmd(const char *command, at_handler_t handler, const char *help,
+                          const char *library)
 {
     if (command == nullptr || handler == nullptr || command[0] == '\0') {
         return ESP_ERR_INVALID_ARG;
@@ -273,6 +316,10 @@ esp_err_t At::registerCmd(const char *command, at_handler_t handler, const char 
     }
 
     if (help != nullptr && strlen(help) > MAX_HELP_LEN) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (library != nullptr && strlen(library) > MAX_LIBRARY_LEN) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -299,9 +346,11 @@ esp_err_t At::registerCmd(const char *command, at_handler_t handler, const char 
     slot.used = true;
     slot.handler = handler;
     slot.has_help = (help != nullptr) && (help[0] != '\0');
+    slot.has_library = (library != nullptr) && (library[0] != '\0');
 
     if (!copyString(slot.command, sizeof(slot.command), command) ||
-        (slot.has_help && !copyString(slot.help, sizeof(slot.help), help))) {
+        (slot.has_help && !copyString(slot.help, sizeof(slot.help), help)) ||
+        (slot.has_library && !copyString(slot.library, sizeof(slot.library), library))) {
         slot = {};
         if (use_lock) at_unlock();
         return ESP_ERR_INVALID_ARG;
@@ -351,29 +400,45 @@ size_t At::commandCount(void) const
 
 void At::help(void) const
 {
-    serial.println(O "AT commands:");
+    serial.println(O "AT core commands:");
+    serial.println(C "  AT");
     serial.println(C "  AT+HELP?");
     serial.println(C "  AT+VER?");
     serial.println(C "  AT+RESET");
 
-    if (!at_lock()) {
-        serial.println(Y "  <registry unavailable>");
+    char libraries[MAX_COMMANDS][MAX_LIBRARY_LEN + 1] = {};
+    size_t library_count = 0;
+    if (at_lock()) {
+        for (size_t i = 0; i < s_command_count; ++i) {
+            if (!s_commands[i].used || !s_commands[i].has_library) {
+                continue;
+            }
+
+            bool already_listed = false;
+            for (size_t j = 0; j < library_count; ++j) {
+                if (strcmp(libraries[j], s_commands[i].library) == 0) {
+                    already_listed = true;
+                    break;
+                }
+            }
+
+            if (!already_listed &&
+                copyString(libraries[library_count], sizeof(libraries[library_count]),
+                           s_commands[i].library)) {
+                ++library_count;
+            }
+        }
+        at_unlock();
+    }
+
+    serial.println(O "AT active libraries:");
+    if (library_count == 0) {
+        serial.println(C "  none");
         return;
     }
-
-    for (size_t i = 0; i < s_command_count; ++i) {
-        if (!s_commands[i].used) {
-            continue;
-        }
-
-        if (s_commands[i].has_help) {
-            serial.println(C "  %-16s" M " %s", s_commands[i].command, s_commands[i].help);
-        } else {
-            serial.println(C "  %s", s_commands[i].command);
-        }
+    for (size_t i = 0; i < library_count; ++i) {
+        serial.println(C "  %s" M " -> AT+%s?", libraries[i], libraries[i]);
     }
-
-    at_unlock();
 }
 
 void At::version(void) const

@@ -60,13 +60,15 @@ using namespace esp32libfun;
 static AtRegistrar wifi_en {
     "AT+WIFI+EN",
     [](const char *) { wifi.enable(); },
-    "Enable Wi-Fi"
+    "Enable Wi-Fi",
+    "WIFI"
 };
 
 static AtRegistrar wifi_sta {
     "AT+WIFI+STA",
     [](const char *args) { wifi.connect(args); },
-    "Connect using ssid,password"
+    "Connect using ssid,password",
+    "WIFI"
 };
 ```
 

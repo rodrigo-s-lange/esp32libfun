@@ -32,7 +32,13 @@ bool atEnabled(void) const;
 
 - command names start with `AT+`
 - query commands end with `?`
-- command help text must be short enough for `AT+HELP?`
+- command descriptions must remain short and useful for module-local discovery
+- every sidecar command should identify its AT library when registered
+- `AT+HELP?` lists the basic AT core commands plus one entry for each active
+  AT library; it does not dump the libraries' individual commands
+- `AT+<LIBRARY>?` lists only the commands currently registered by that library
+- a library identifier must be uppercase and must not collide with one of the
+  library's functional AT commands
 - invalid user input returns `ERROR: ...`
 - successful operations return useful data and/or `OK`
 - commands should not hide board-specific pin choices
@@ -46,6 +52,8 @@ Sidecars should:
 
 - register all commands atomically from the user's point of view
 - unregister all commands on `at(false)`
+- use the same library name for every command so `AT+HELP?` adds and removes
+  the library index entry with the command registry
 - keep parser helpers local to the sidecar
 - call the module's public API instead of reaching into private state
 

@@ -801,21 +801,21 @@ esp_err_t I2c::at(bool enable) const
             return ESP_OK;
         }
 
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CBUS", atI2cBusSet, "I2C bus init: <sda>,<scl>[,<speed>[,<port>[,<pullup>]]]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CBUS?", atI2cBusGet, "I2C bus state: AT+I2CBUS?<port>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CBUSOFF", atI2cBusOff, "I2C bus end: <port>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2C", atI2cScan, "I2C scan: AT+I2C=SCAN[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CSCAN", atI2cScanAlias, "I2C scan alias: AT+I2CSCAN[=<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CPROBE", atI2cProbe, "I2C probe: <addr>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CADD", atI2cAdd, "I2C add device: <addr>[,<port>[,<speed>[,<addr_bits>]]]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CDEV?", atI2cDevGet, "I2C device state: AT+I2CDEV?<addr>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CREMOVE", atI2cRemove, "I2C remove device: <addr>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CRESET", atI2cReset, "I2C reset bus: <port>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CWRITE", atI2cWrite, "I2C write bytes: <addr>,<hex>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CREAD", atI2cRead, "I2C read bytes: <addr>,<len>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CWRITEREAD", atI2cWriteRead, "I2C write-read: <addr>,<hex>,<len>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CREGWRITE", atI2cRegWrite, "I2C register write: <addr>,<reg>,<hex>[,<port>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CREGREAD", atI2cRegRead, "I2C register read: <addr>,<reg>,<len>[,<port>]"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CBUS", atI2cBusSet, "I2C bus init: <sda>,<scl>[,<speed>[,<port>[,<pullup>]]]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CBUS?", atI2cBusGet, "I2C bus state: AT+I2CBUS?<port>", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CBUSOFF", atI2cBusOff, "I2C bus end: <port>", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2C", atI2cScan, "I2C scan: AT+I2C=SCAN[,<port>]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CSCAN", atI2cScanAlias, "I2C scan alias: AT+I2CSCAN[=<port>]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CPROBE", atI2cProbe, "I2C probe: <addr>[,<port>]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CADD", atI2cAdd, "I2C add device: <addr>[,<port>[,<speed>[,<addr_bits>]]]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CDEV?", atI2cDevGet, "I2C device state: AT+I2CDEV?<addr>[,<port>]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CREMOVE", atI2cRemove, "I2C remove device: <addr>[,<port>]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CRESET", atI2cReset, "I2C reset bus: <port>", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CWRITE", atI2cWrite, "I2C write bytes: <addr>,<hex>[,<port>]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CREAD", atI2cRead, "I2C read bytes: <addr>,<len>[,<port>]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CWRITEREAD", atI2cWriteRead, "I2C write-read: <addr>,<hex>,<len>[,<port>]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CREGWRITE", atI2cRegWrite, "I2C register write: <addr>,<reg>,<hex>[,<port>]", "I2C"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+I2CREGREAD", atI2cRegRead, "I2C register read: <addr>,<reg>,<len>[,<port>]", "I2C"));
         s_i2c_at_enabled = true;
         return ESP_OK;
     }

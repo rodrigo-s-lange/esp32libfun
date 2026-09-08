@@ -863,19 +863,19 @@ esp_err_t WifiSta::at(bool enable) const
             return ESP_OK;
         }
 
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFICRED", atWifiCred, "Wi-Fi credentials: \"ssid\"[,\"password\"]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIHOST", atWifiHost, "Wi-Fi hostname: \"hostname\" or empty to clear"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIIP", atWifiIpSet, "Wi-Fi IP mode: DHCP or <ip>,<gateway>,<subnet>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIIP?", atWifiIpGet, "Wi-Fi local and pending IP state"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFI?", atWifiStatus, "Wi-Fi status summary"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFICONNECT", atWifiConnect, "Wi-Fi connect using pending config [timeout_ms]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIRECONNECT", atWifiReconnect, "Wi-Fi reconnect using pending config [timeout_ms]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIDISCONNECT", atWifiDisconnect, "Wi-Fi disconnect current session"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFISAVE", atWifiSave, "Save pending Wi-Fi config to NVS"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFILOAD", atWifiLoad, "Load Wi-Fi config from NVS"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIFORGET", atWifiForget, "Erase saved Wi-Fi config and clean session"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIPING", atWifiPing, "Ping host through Wi-Fi: <host>[,<count>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIPINGROUTER", atWifiPingRouter, "Ping current Wi-Fi gateway [count]"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFICRED", atWifiCred, "Wi-Fi credentials: \"ssid\"[,\"password\"]", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIHOST", atWifiHost, "Wi-Fi hostname: \"hostname\" or empty to clear", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIIP", atWifiIpSet, "Wi-Fi IP mode: DHCP or <ip>,<gateway>,<subnet>", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIIP?", atWifiIpGet, "Wi-Fi local and pending IP state", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFI?", atWifiStatus, "Wi-Fi status summary", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFICONNECT", atWifiConnect, "Wi-Fi connect using pending config [timeout_ms]", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIRECONNECT", atWifiReconnect, "Wi-Fi reconnect using pending config [timeout_ms]", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIDISCONNECT", atWifiDisconnect, "Wi-Fi disconnect current session", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFISAVE", atWifiSave, "Save pending Wi-Fi config to NVS", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFILOAD", atWifiLoad, "Load Wi-Fi config from NVS", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIFORGET", atWifiForget, "Erase saved Wi-Fi config and clean session", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIPING", atWifiPing, "Ping host through Wi-Fi: <host>[,<count>]", "WIFI_STA"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+WIFIPINGROUTER", atWifiPingRouter, "Ping current Wi-Fi gateway [count]", "WIFI_STA"));
         s_wifi_at_enabled = true;
         return ESP_OK;
     }

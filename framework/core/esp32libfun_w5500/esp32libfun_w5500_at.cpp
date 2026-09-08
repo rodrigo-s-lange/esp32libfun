@@ -904,18 +904,18 @@ esp_err_t W5500::at(bool enable) const
         }
 
         syncPendingConfigFromRuntime();
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500CFG", atW5500Cfg, "W5500 cfg: <miso>,<mosi>,<sclk>,<cs>[,<int>[,<rst>...]]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500HOST", atW5500Host, "W5500 host: \"name\" or empty"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500IP", atW5500IpSet, "W5500 IP: DHCP or <ip>,<gateway>,<subnet>"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500IP?", atW5500IpGet, "W5500 IPv4 and pending mode"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500?", atW5500Status, "W5500 status"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500START", atW5500Start, "W5500 start with pending cfg [timeout_ms]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500STOP", atW5500Stop, "W5500 stop"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500END", atW5500End, "W5500 end and free bus"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500RENEW", atW5500Renew, "W5500 DHCP renew"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500PING", atW5500Ping, "W5500 ping: <host>[,<count>]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500PINGROUTER", atW5500PingRouter, "W5500 gateway ping [count]"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500PINGEXTERNAL", atW5500PingExternal, "W5500 ping 8.8.8.8 [count]"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500CFG", atW5500Cfg, "W5500 cfg: <miso>,<mosi>,<sclk>,<cs>[,<int>[,<rst>...]]", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500HOST", atW5500Host, "W5500 host: \"name\" or empty", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500IP", atW5500IpSet, "W5500 IP: DHCP or <ip>,<gateway>,<subnet>", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500IP?", atW5500IpGet, "W5500 IPv4 and pending mode", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500?", atW5500Status, "W5500 status", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500START", atW5500Start, "W5500 start with pending cfg [timeout_ms]", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500STOP", atW5500Stop, "W5500 stop", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500END", atW5500End, "W5500 end and free bus", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500RENEW", atW5500Renew, "W5500 DHCP renew", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500PING", atW5500Ping, "W5500 ping: <host>[,<count>]", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500PINGROUTER", atW5500PingRouter, "W5500 gateway ping [count]", "ESP32LIBFUN_W5500"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+W5500PINGEXTERNAL", atW5500PingExternal, "W5500 ping 8.8.8.8 [count]", "ESP32LIBFUN_W5500"));
         s_w5500_at_enabled = true;
         return ESP_OK;
     }

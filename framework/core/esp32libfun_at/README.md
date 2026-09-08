@@ -39,10 +39,11 @@ CONFIG_ESP32LIBFUN_AT_MAX_CMDS=16
 - `at.start()`: starts the serial-backed AT console task.
 - `at.stop()`: stops the serial-backed AT console task.
 - `at.feedLine(line)`: parses and dispatches one AT line without CR/LF.
-- `at.registerCmd(command, handler, help)`: adds one command to the fixed-size registry.
+- `at.registerCmd(command, handler, help, library)`: adds one command to the
+  fixed-size registry. The optional library name appears once in `AT+HELP?`.
 - `at.unregisterCmd(command)`: removes one previously registered command.
 - `at.commandCount()`: returns the number of registered commands.
-- `at.help()`: prints the built-in and registered command list.
+- `at.help()`: prints the built-in core commands and active AT libraries.
 - `at.version()`: prints the framework version.
 - `at.writeLine(fmt, ...)`: prints one response line.
 - `at.writeOk(fmt, ...)`: prints one green success line; defaults to `OK`.
@@ -62,8 +63,12 @@ CONFIG_ESP32LIBFUN_AT_MAX_CMDS=16
 ## Built-In Commands
 
 - `AT`: replies with `OK`
-- `AT+HELP?`: lists built-in and registered commands
+- `AT+HELP?`: lists the built-in core commands and active AT libraries;
+  each entry points to its library-specific help query
+- `AT+<LIBRARY>?`: lists the registered commands and descriptions belonging
+  only to that active library
 - `AT+VER?`: prints the framework version
+- `AT+RESET`: performs a software reset
 
 ## Usage
 
@@ -142,7 +147,7 @@ static void wifiEnable(const char *args)
     at.writeOk();
 }
 
-static AtRegistrar wifi_enable("AT+WIFIEN", wifiEnable, "Enable Wi-Fi");
+static AtRegistrar wifi_enable("AT+WIFIEN", wifiEnable, "Enable Wi-Fi", "WIFI");
 ```
 
 ## Sidecar Integration Pattern

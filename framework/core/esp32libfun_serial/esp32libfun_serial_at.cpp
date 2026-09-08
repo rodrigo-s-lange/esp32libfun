@@ -113,11 +113,11 @@ esp_err_t Serial::at(bool enable)
             return ESP_OK;
         }
 
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SERIALPRINT", atSerialPrint, "Print one line through serial"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SERIALPRINTLN", atSerialPrintln, "Print one line with println"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SERIALECHO", atSerialEchoSet, "Serial line echo: 0|1"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SERIALECHO?", atSerialEchoGet, "Read serial echo state"));
-        ESP_ERROR_CHECK(::at.registerCmd("AT+SERIALBACKEND?", atSerialBackendGet, "Read serial backend name"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SERIALPRINT", atSerialPrint, "Print one line through serial", "ESP32LIBFUN_SERIAL"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SERIALPRINTLN", atSerialPrintln, "Print one line with println", "ESP32LIBFUN_SERIAL"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SERIALECHO", atSerialEchoSet, "Serial line echo: 0|1", "ESP32LIBFUN_SERIAL"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SERIALECHO?", atSerialEchoGet, "Read serial echo state", "ESP32LIBFUN_SERIAL"));
+        ESP_ERROR_CHECK(::at.registerCmd("AT+SERIALBACKEND?", atSerialBackendGet, "Read serial backend name", "ESP32LIBFUN_SERIAL"));
         s_serial_at_enabled = true;
         return ESP_OK;
     }
