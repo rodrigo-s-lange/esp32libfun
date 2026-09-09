@@ -19,6 +19,7 @@
 # Build artifacts and directories
 **/build/
 build/
+/build-wroom-v020/
 *.o
 *.a
 *.out
