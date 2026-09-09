@@ -19,8 +19,14 @@ transactional output preservation. Substantial buffers have static lifetime.
 
 Composer's AT gates verify restored live output/staging, no save on boot,
 staging, query or cancel, exclusion of pending edits during pause save,
-confirmed publish, applied-but-unsaved failure/retry, detach and validation.
-All existing gates remain registered.
+confirmed publish, applied-but-unsaved failure/retry, detach and validation,
+plus (unreleased, added after the hardware run below) `AT+SEGBRIGHT`/
+`AT+SEGBLEND`/`AT+SEGOPACITY`/`AT+COMBRIGHT?`/`AT+COMBRIGHT`: invalid input,
+staged/live separation, an overlapping composition reaching `FakeSink`
+byte-exact through every `BlendMode`, `FxRuntime` carry-forward across a
+field-only republish, immediate global brightness (including while paused),
+and their integration with the persistence gates above. All existing gates
+remain registered.
 
 `SCENE_TEST ... RESULT=ALL_PASS` repeats the results of one completed run;
 suites do not rerun every two seconds. No physical pixel adapter is linked.
@@ -34,3 +40,19 @@ The first build found a missing test-only `<initializer_list>` include; fixed
 before flashing. No production compiler warnings were introduced. Full configure
 also reported existing ESP-IDF Git-submodule metadata/Kconfig notices and the
 known unused serial-backend variable warning.
+
+### Composition-control gates — hardware run 2026-09-09
+
+The expanded suite ran on WROOM-32/COM6 with ESP-IDF 6.0.2:
+1605 Composer + 1003 AT + 1177 codec/journal checks = **3785**, zero failures.
+Capture: `build/composition-controls-hardware-validation.log`.
+
+The first run found one incorrect test expectation: brightness 200 followed
+by opacity 128 quantizes consecutive runtime markers 1 and 2 to the same
+output byte. The test now checks the exact three-frame sequence 0,0,1,
+which also distinguishes preserved runtime from a reset. Production code
+was unchanged. Failure capture: `build/composition-controls-failure.log`.
+
+These gates use FakeSink and wrapped NVS. They validate the new 21-command
+sidecar and persistence integration, not the physical appearance of effects
+or a new real-NVS recovery cycle for the composition controls.

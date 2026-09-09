@@ -65,7 +65,7 @@ Composer/FX checkpoints are not accidentally compiled alongside the new line.
 
 | Component | Checkout | Validated revision |
 |---|---|---|
-| Composer and its adapter | `../esp_pixels_composer` | unreleased persistence bridge on `feature/at-scene-persistence`, `a39260dff35038a0ec6347e918c340edff98b3ae`, over published `v0.2.0` |
+| Composer and its adapter | `../esp_pixels_composer` | unreleased persistence bridge and AT composition controls on `feature/at-scene-persistence`, `97159d21ac5a6f4e1c1a71cc4792baade552b6df`, over published `v0.2.0` |
 | FX | `../esp_pixels_fx` | local integration `e7e0ba391473005137f6fd4dcf70b4355975b6ac`; not yet published |
 | Pixels transport | `framework/libs/esp_pixels` | `5d7db6b7ce17935ec5213e241c66055787726564`, with existing local README/AT changes preserved |
 | Core | this repository's `framework/core` | current application checkout |
@@ -108,7 +108,10 @@ codec/journal checks, **3599 total, zero failures**. NVS was mocked only in that
 test image; it did not touch stored device data. The root application was then
 rebuilt and flashed with real NVS, returning from `app_main()` with 16/48 AT
 commands and `persistence=scene-v1`. Root binary: 227824 bytes, 78% app partition
-free. These changes remain local and uncommitted; no tag or push was made.
+free. These changes were local and uncommitted at the time of this bench run;
+they were since committed locally as this application's
+`de582eb9c5639152de90672b1cc98234b7dfa166` and the Composer bridge's
+`a39260dff35038a0ec6347e918c340edff98b3ae` (still no tag or push).
 
 Real NVS smoke test passed with the empty scene: first SEGPUB wrote slot A,
 generation 1, 36 bytes; identical republish performed no further write. After
@@ -131,11 +134,66 @@ repeated a manual reset with the same result. This is a manual-reboot
 configuration-recovery test; it is **not** a test of power loss during a
 write, which this firmware has not attempted.
 
+## Composition controls via AT (brightness/blend/opacity) — unreleased
+
+`AT+COMBRIGHT?`/`AT+COMBRIGHT=<0-255>` (global brightness, immediate, the
+same pattern `AT+COMPAUSE?`/`AT+COMPAUSE` already has) and
+`AT+SEGBRIGHT=<id>,<0-255>`/`AT+SEGBLEND=<id>,<REPLACE|ADD|ALPHA>`/
+`AT+SEGOPACITY=<id>,<0-255>` (per-segment, staged, effective only after a
+confirmed `AT+SEGPUB`) are new in the Composer sidecar, unreleased over
+published `v0.2.0`. These changes are committed locally as
+`97159d21ac5a6f4e1c1a71cc4792baade552b6df`, layered on top of the persistence
+bridge commit `a39260dff35038a0ec6347e918c340edff98b3ae`
+(this application's own `main/main.cpp`/`scene_store`/`scene_codec` are
+unaffected -- `SegmentSpec` already carried these fields).
+Sidecar command count: 16 -> 21. Before this addition, global brightness had
+**no** AT setter at all -- only global pause did (`AT+COMPAUSE`); the two
+must not be conflated. `AT+SEG=<id>?` now always shows the three per-segment
+controls, for any effect. All four integrate with the existing NVS
+persistence: `SegmentSpec` already carried brightness/blend/opacity before
+this addition, so no codec or schema change was needed to retain them; a
+confirmed `AT+COMBRIGHT` saves exactly like a confirmed `AT+COMPAUSE`
+already does. See the Composer's own `README.md`/`esp_pixels_composer_at.cpp`
+for the full contract.
+
+### Bench run — 2026-09-09
+
+The expanded `pixels_scene_test` firmware ran on WROOM-32/COM6: **3785
+checks, zero failures** (1605 Composer, 1003 AT, 1177 codec/journal).
+A quantization-sensitive test assertion was corrected after the first run;
+production code was unchanged. See the test project's README for evidence.
+
+The application was then flashed again (229536 bytes, 78% partition free).
+Only queries were sent after restoration: discovery listed all 21 commands,
+the saved Rainbow `[0,25)` and Sinelon `[25,50)` segments were present,
+both Active with brightness=255/blend=REPLACE/opacity=255, global brightness
+255 and `paused=0 running=1`. Capture:
+`build-wroom-v020/composition-controls-app-restored.log`.
+
+The operator-approved composition-control sequence then ran on the physical
+strip: global brightness 64/255, segment 1 brightness 64, and temporary Solid
+segments 101 (red) and 102 (blue), both `[0,50)`, over the original scene.
+The top layer exercised Replace with opacity 0, Add with opacity 0/255,
+and Alpha with opacity 128. Every publication/save returned success.
+
+An `AT+RESET` without resending configuration recovered generation 12:
+four segments, global brightness 96, top-layer brightness 192, Alpha and
+opacity 128. Post-boot queries confirmed all four values and running state.
+The temporary segments were then removed and the original two-effect scene
+saved as generation 14 (104 bytes): both segments Active, brightness 255,
+Replace, opacity 255, global brightness 255 and pause off. Final queries
+confirmed the original geometry, effects, speed/intensity 128 and palette 0.
+Capture: `build-wroom-v020/composition-controls-visual.log`.
+Rodrigo confirmed the demonstrated color/blend transitions, the same mixture
+after reboot, and the final Rainbow/Sinelon restoration visually. Serial
+behavior, real-NVS reboot recovery and that visual sequence passed. This was
+not a power-cut-during-write test.
+
 ## Known gaps
 
-- No AT setters exist yet for per-segment brightness, blend or opacity
-  (tracked in the Composer header's own TODO); only global brightness/pause
-  are settable today, and only global pause persists automatically.
+- Named presets, 2D and multiple outputs are required for the EasyLED MVP.
+  Their AT/storage integration remains pending; this bench still uses the
+  fixed single-output, 1D scene schema described above.
 - No symmetric (palindromic) mirror effect exists. The existing per-segment
   `reversed` flag only reverses which physical index a segment's local
   position `i` maps to; it is a local index flip, not the requested
