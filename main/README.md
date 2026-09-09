@@ -191,6 +191,11 @@ not a power-cut-during-write test.
 
 ## Known gaps
 
+The agreed scope and proposed delivery order are tracked in the
+[EasyLED / pixels roadmap](../docs/pixels-roadmap.md), including named
+presets, 2D, multiple outputs, symmetric mirror, custom parameters and new
+effects. The next implementation brief is [named presets](../docs/pixels-presets-task.md).
+
 - Named presets, 2D and multiple outputs are required for the EasyLED MVP.
   Their AT/storage integration remains pending; this bench still uses the
   fixed single-output, 1D scene schema described above.
