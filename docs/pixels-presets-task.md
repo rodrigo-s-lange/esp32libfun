@@ -3,8 +3,9 @@
 ## Outcome
 
 Add named presets to the existing WROOM application: save the confirmed
-scene, list presets, load one and delete one through AT. Demonstrate two
-different saved scenes surviving reboot and being recalled. This is the
+scene, list presets, load one and delete one through AT. Rodrigo specified
+**100 preset positions**. Demonstrate two different saved scenes surviving
+reboot and being recalled, and test the full 100-position capacity. This is the
 next cohesive MVP delivery in [the roadmap](pixels-roadmap.md).
 
 Follow `AGENTS.md` and its required reading. Start from Composer `97159d2`
@@ -32,9 +33,19 @@ check actual branches, HEADs and existing work before changing anything.
   from an applied scene whose subsequent current-scene save failed.
 - Queries and deletion do not change the active scene. Deleting a preset
   does not erase the independently retained current scene.
-- Use bounded storage and documented name rules. Determine capacity from
-  the actual NVS partition and record overhead; support at least two presets
-  without silently claiming capacity that the partition cannot hold.
+- Provide 100 preset positions with documented name rules. Empty positions
+  need not contain allocated scene records. Size storage for 100 occupied
+  positions at the maximum supported scene size, including names, journal
+  redundancy, NVS overhead and space for replacement/recovery. Test full
+  capacity, replacement while full and rejection beyond 100 without data loss.
+- The current standard partition table has only 24 KiB of NVS. A schema-1
+  scene can occupy 1124 bytes; 100 maximum-sized scenes already require
+  112400 bytes before names, redundancy or NVS overhead. Include the necessary
+  application partition/storage configuration in this task, using a custom
+  partition CSV and sdkconfig.defaults as needed, never editing sdkconfig.
+  Preserve the existing current-scene NVS partition/data when arranging
+  preset storage. Report the proposed flash layout and capacity calculation
+  before the separately authorized bench flash; do not silently reduce 100.
 - Preserve current-scene A/B recovery and deduplication. Reuse the explicit
   scene codec where appropriate; preset metadata may have its own version.
   Prepare a clear compatibility boundary for later 2D/multiple-output scenes,
@@ -57,7 +68,7 @@ run `git diff --check`. Report implementation choices, files, build results
 and a short bench sequence. Update public documentation with actual behavior.
 Do not claim execution or visual confirmation from a successful build.
 
-No flash, serial, commit, push, tag, merge, rebase, SDK configuration edits,
+No flash, serial, commit, push, tag, merge, rebase, direct sdkconfig edits,
 FX/Pixels changes or unrelated cleanup in this implementation task. If a
 functional blocker requires expanding scope, report the concrete blocker.
 Codex will execute the suite and the operator-approved visual sequence, fix

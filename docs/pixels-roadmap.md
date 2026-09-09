@@ -21,7 +21,7 @@ here does not establish an agreed exclusion from the MVP.
 
 | Order | Delivery | Acceptance result |
 |---|---|---|
-| 1 — next | Named presets via AT | Save, list, load and delete named scenes; at least two distinct presets survive reboot and can be recalled. |
+| 1 — next | Named presets via AT, 100 positions | Save, list, load and delete named scenes; validate full capacity and recall distinct presets after reboot. Size storage for 100 maximum-sized scenes plus overhead/recovery space. |
 | 2 | Multiple physical outputs | Configure and drive at least two outputs through the product API, persist their configuration, and validate with separately connected strips. |
 | 3 | 2D / ledmap through AT and persistence | Configure a mapped panel, recall its scene after reboot, and demonstrate a spatial pattern/effect that proves the mapping. Add the minimum 2D effect needed for this demonstration. |
 | 4 | Symmetric mirror per segment | Demonstrate symmetric duplication, distinct from reverse, with documented odd/even-length behavior, AT control and persistence. |
