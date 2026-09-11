@@ -1,0 +1,22 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+#
+# Preserves the ESP-IDF default partitions_singleapp.csv entries exactly --
+# same order, same sizes, same auto-computed offsets -- so the existing
+# current-scene NVS partition (namespace "pixels_scene", keys scene_a/
+# scene_b) and any data already saved there survive untouched. Appends a
+# new, entirely separate "presets" NVS-type partition (namespace
+# "pixels_presets", used only by main/preset_store.cpp) for 100 named
+# presets with A/B redundancy per position.
+#
+# Capacity: each preset record is at most 1177 bytes (kPresetRecordBytes,
+# main/preset_codec.hpp: a 32-segment scene wrapped with a name/header/CRC).
+# NVS v2 uses a blob index plus chunk headers. At most 41 entries x 32 =
+# 1312 bytes per record here, allowing a split across two pages. 100 x 2
+# A/B records = 262400 bytes of record entries. The 80-page partition has
+# 10080 usable entries, leaving 1880 beyond those 8200 record entries for
+# namespace metadata, free-page reserve, fragmentation and updates.
+# Full-capacity real-NVS execution remains a bench gate; see main/README.md.
+nvs,      data, nvs,     ,        0x6000,
+phy_init, data, phy,     ,        0x1000,
+factory,  app,  factory, ,        1M,
+presets,  data, nvs,     ,        0x50000,

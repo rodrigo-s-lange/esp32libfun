@@ -20,6 +20,7 @@
 **/build/
 build/
 /build-wroom-v020/
+/build-wroom-rmt-safe/
 *.o
 *.a
 *.out

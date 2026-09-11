@@ -1,16 +1,23 @@
 # WROOM-32 pixels AT bench
 
 The root application drives 50 WS2812 pixels in GRB order on GPIO16.
+At application startup it initializes the sink and sends a completed black
+frame before reading NVS. The persistence bridge renders the recovered
+scene once during attachment; the managed task later continues rendering.
+This also clears the strip when booting with
+no valid saved scene; a runtime empty publication still behaves as below.
 `Composer::start()` owns rendering; `app_main()` returns after setup. The
 adapter and Composer have static lifetime. Boot restores the last saved scene
 from NVS before starting the managed task and AT reader. With no valid saved
 scene it starts empty. Storage belongs to this application; the Composer
 sidecar only has an optional, storage-neutral scene callback.
 
-Only the `PIXELS_COMPOSER` sidecar is enabled. Discover it with `AT+HELP?`,
+The `PIXELS_COMPOSER` sidecar is enabled. Discover it with `AT+HELP?`,
 then `AT+PIXELS_COMPOSER?`. `AT+SEG?` inspects the staged table and
 `AT+COMPAUSE?` reports managed-runtime state. Changes made with segment
-setters take effect only after `AT+SEGPUB`.
+setters take effect only after `AT+SEGPUB`. `PIXELS_PRESETS` (unreleased)
+is a second, application-owned AT library for named
+presets -- see its own section below.
 
 ## Automatic configuration retention (scene schema 1)
 
@@ -39,7 +46,11 @@ setters take effect only after `AT+SEGPUB`.
 - Identical canonical configurations are not rewritten. Saves run synchronously
   in the AT task, never per-frame or in the Composer render task. External
   automation should group edits into deliberate publishes to limit flash wear.
-  Flash access can still briefly stall rendering on ESP32.
+  Flash access can still briefly stall rendering on ESP32. The WROOM
+  application enables `CONFIG_RMT_TX_ISR_CACHE_SAFE=y` so an in-flight
+  WS2812 transmission keeps receiving symbols during cache-disabled NVS
+  operations. Placing the handler/encoder in IRAM alone does not enable
+  its interrupt during those operations.
 - `CONFIG saved` precedes normal success only after storage succeeds (or the
   same record was already saved). Failure reports `applied; NOT saved`; live
   state is not rolled back. Retry `AT+SEGPUB`, which republishes the **current
@@ -65,7 +76,7 @@ Composer/FX checkpoints are not accidentally compiled alongside the new line.
 
 | Component | Checkout | Validated revision |
 |---|---|---|
-| Composer and its adapter | `../esp_pixels_composer` | unreleased persistence bridge and AT composition controls on `feature/at-scene-persistence`, `97159d21ac5a6f4e1c1a71cc4792baade552b6df`, over published `v0.2.0` |
+| Composer and its adapter | `../esp_pixels_composer` | `0730626d2842a55d980b0848e636b579ecc81c62` on `feature/at-scene-persistence`: persistence, AT composition controls and confirmed-scene export/load; unreleased over published `v0.2.0` |
 | FX | `../esp_pixels_fx` | local integration `e7e0ba391473005137f6fd4dcf70b4355975b6ac`; not yet published |
 | Pixels transport | `framework/libs/esp_pixels` | `5d7db6b7ce17935ec5213e241c66055787726564`, with existing local README/AT changes preserved |
 | Core | this repository's `framework/core` | current application checkout |
@@ -80,12 +91,15 @@ versions at boot to identify the compiled APIs.
 Activate ESP-IDF 6.0.2 in PowerShell, then from the repository root:
 
 ```powershell
-idf.py -B build-wroom-v020 -DIDF_TARGET=esp32 build
-idf.py -B build-wroom-v020 -p COM6 flash
+idf.py -B build-wroom-rmt-safe -D SDKCONFIG=build-wroom-rmt-safe/sdkconfig -D IDF_TARGET=esp32 build
+idf.py -B build-wroom-rmt-safe -p COM6 flash
 ```
 
 Close other serial monitors before flashing. Console baud rate is 115200.
-The separate build directory preserves the preceding bench firmware artifacts.
+The separate build directory preserves the preceding bench firmware artifacts
+and generates its configuration from defaults. An existing `sdkconfig` can
+retain the old disabled `CONFIG_RMT_TX_ISR_CACHE_SAFE` value despite new
+defaults; verify the generated configuration enables it before flashing.
 Wait for the `PIXELS_AT` ready line before sending commands. The Composer
 sidecar owns configuration and the adapter owns transport; do not enable the
 Pixels or standalone FxPlayer sidecars on this same output.
@@ -189,16 +203,174 @@ after reboot, and the final Rainbow/Sinelon restoration visually. Serial
 behavior, real-NVS reboot recovery and that visual sequence passed. This was
 not a power-cut-during-write test.
 
+## Named presets (100 positions) — unreleased
+
+`PIXELS_PRESETS`, a second, application-owned AT library (`main/preset_codec.*`,
+`main/preset_store.*`, `main/presets_at.*`), separate from `PIXELS_COMPOSER`:
+discover it the same way, `AT+HELP?` then `AT+PIXELS_PRESETS?`. Four
+commands. Save/list/delete affect only named presets; load also updates the
+independently retained current scene after confirmed application:
+
+- `AT+PRESETS?` -- lists occupied positions: `PRESET name=<name>
+  segments=<n>` per line, then `PRESETS occupied=<n>/100`. Query only.
+- `AT+PRESETSAVE=<name>` -- exports the Composer's own **confirmed** scene
+  (`esp_pixels_composer::exportConfirmedScene()`) and saves it under
+  `<name>`. Never an unpublished staged edit. An existing name is replaced
+  deliberately, at its own position; the prior valid record survives any
+  write/commit/verify failure. A brand-new name claims the first free
+  position; all 100 occupied by other names reports failure, no data lost.
+- `AT+PRESETLOAD=<name>` -- validates the whole named preset before
+  touching anything, then applies it via
+  `esp_pixels_composer::loadConfirmedScene()`: replaces the staged table and
+  the active scene, including global brightness/pause, and **discards any
+  pending staged edit** -- there is no partial merge. A
+  missing/corrupt/incompatible preset leaves the active scene and staged
+  table completely unchanged. On a confirmed load, the resulting scene is
+  also saved through the existing current-scene path (`CONFIG saved`/
+  `applied; NOT saved`, same as a confirmed `AT+SEGPUB`) so it survives the
+  next reboot too -- a save failure there is reported only that way; it
+  never means the load itself failed, since the scene was already applied.
+- `AT+PRESETDEL=<name>` -- erases the named position. Never touches the
+  active scene, and never touches the independently retained current scene
+  (`pixels_scene` namespace) either.
+
+Names: 1-31 printable ASCII bytes (0x20-0x7E, no control characters),
+leading/trailing whitespace trimmed; matching is exact, case-sensitive.
+
+Runtime loads preserve matching segment identities under the existing
+Composer carry-forward rules; changed identities/effects/geometry/restart
+tokens start fresh. Global brightness/pause are applied after adoption, so
+an adoption frame may render before global pause takes effect. Boot still
+starts fresh runtimes. Presets do not restore framebuffers.
+
+### Flash layout and capacity (reported before any bench flash)
+
+The standard partition table's `nvs` partition is only 24 KiB -- far too
+small for 100 named positions. A new, separate `presets` partition
+(`partitions_wroom_presets.csv`, `CONFIG_PARTITION_TABLE_CUSTOM` in
+`sdkconfig.defaults.esp32`, never a direct `sdkconfig` edit) adds an NVS-type
+partition sized for this, while the existing `nvs`/`phy_init`/`factory`
+partitions keep their exact prior offsets and sizes -- the current-scene
+data already saved there is untouched:
+
+```
+nvs,      data, nvs,     0x9000,  24K
+phy_init, data, phy,     0xf000,  4K
+factory,  app,  factory, 0x10000, 1M
+presets,  data, nvs,     0x110000,320K
+```
+
+(Confirmed by building this application and dumping the generated
+`partition-table.bin` -- offsets are ESP-IDF's own auto-computed, sequential
+ones; only `presets` is new.) Total used: 0x160000 bytes (~1.375 MiB) of the
+4 MiB flash.
+
+Capacity math: each preset record is at most 1177 bytes
+(`kPresetRecordBytes` -- a 32-segment scene, the same maximum the
+current-scene schema already allows, wrapped with a name/header/CRC by
+`preset_codec.hpp`). ESP-IDF 6.0.2 uses a blob index entry plus a header for
+each data chunk. An unsplit record uses 1 + 1 + ceil(1177/32) = 39 entries
+(1248 bytes). Allowing a split across two pages gives up to 41 entries
+(1312 bytes), including chunk headers and payload rounding. 100 positions
+with both A/B records therefore require up to **262400 bytes** of record
+entries. The 320 KiB partition has 80 pages, each with 126 usable 32-byte
+entries: 10080 entries versus 8200 for those records, leaving 1880 entries
+for namespace metadata, free-page reserve, fragmentation and updates.
+This is a sizing estimate; the real-NVS capacity run below also passed.
+The RAM mock exercises 100 small scenes, not NVS page allocation. Empty
+positions store nothing at all -- 100 is a logical capacity ceiling
+enforced by this application, not 100 pre-allocated records.
+
+### Status
+
+On 2026-09-10 the expanded suite ran on WROOM-32/COM6: **5224 checks,
+zero failures** (1605 Composer, 1053 AT, 1177 codec/journal, 1389 presets).
+See the scene test README for the capture and the corrected test-only
+read-fault sequencing failure from the first run.
+
+The application was then flashed with the custom partition table (245840
+bytes, 77% app partition free). Serial confirmed the original Rainbow/Sinelon
+scene, global brightness 255, `paused=0 running=1`, all four preset commands
+and an empty store (`0/100`). Existing current-scene NVS data survived the
+partition-table update. Capture: `build-wroom-v020/presets-bench.log`.
+Rodrigo confirmed red/blue preset recall and operation after reboot, then
+reported intermittent flicker. No unexpected reset appeared in the captured
+100-load batch; the visual flicker remains under investigation.
+
+Real NVS accepted 100 maximum-size presets (32 segments, 1177 bytes each),
+rejected a new 101st name with `ESP_ERR_NO_MEM`, replaced all 100 while full
+(both A/B records populated), and replaced the final name again. After a
+software reboot, all 100 remained listed and all 100 loads succeeded. This
+exercised 201 maximum-size record writes, including replacement with both
+journal sides populated. It does not simulate power loss during a write.
+The serial harness's 1500 ms boot wait was too short with the full store;
+subsequent queries succeeded. Future bench reset steps allow 5000 ms.
+
+At Rodrigo's request the temporary capacity names were replaced by
+`Pos001` through `Pos100`: positions 1/2/3 show only physical LED 1 in R/G/B,
+4/5/6 show LED 2 in R/G/B, and position 100 shows LED 34 red. All other
+pixels are black; global brightness is 96/255. All 100 saves succeeded.
+Rodrigo observed brief flashes on pixels after the selected LED, followed
+by stable output. The initial build had `CONFIG_RMT_TX_ISR_CACHE_SAFE`
+disabled. The corrected application enables that option in
+`sdkconfig.defaults.esp32`; it does not change the HAL or pixel libraries.
+The fresh `build-wroom-rmt-safe/sdkconfig` differs from the preceding active
+configuration only by this enabled option. Build passed (246096 bytes,
+77% app partition free), flash verification passed, and boot recovered all
+100 presets and the current LED-34 red scene. The generated partition table
+is byte-identical to the preceding preset build.
+
+With LED 34 held red, ten replacements of `Pos100` succeeded before the
+correction and ten after it. The subsequent RGB recall sequence loaded all
+100 presets and verified each marker's geometry, RGB value and Active state
+through AT, with no mismatch. A final `AT+RESET` recovered current-scene
+generation 221 (32 segments) and all 100 presets. Operator
+confirmation of the corrected preset-transition behavior remains pending. Build/flash
+captures: `build-wroom-v020/rmt-safe-build.log` and `rmt-safe-flash.log`;
+serial capture remains `build-wroom-v020/presets-bench.log`.
+
+On 2026-09-11 Rodrigo manually reset the board and confirmed LED 34 red,
+but reported LED 37 briefly green. He clarified that this happens **once
+during reset**, not repeatedly during steady operation. Read-only AT checks
+confirmed the expected full-strip black Replace layer and LED-34 red marker,
+brightness 96 and running state. A temporary diagnostic disabled the two
+underlying animation segments; `PRESETLOAD=Pos100` then restored the exact
+preset (current-scene generation 223). No preset was overwritten or deleted.
+Rodrigo also reproduced the green flash when switching the power off/on.
+The reset transient remains open. The persistence bridge already renders
+once during attachment, before scanning presets; the roughly 1.4 s boot
+time is time to AT readiness, not the time of the first transmission.
+An application-only change now initializes
+the sink and transmits a black frame before reading either store, using the
+existing begin/submit/commit/wait API before any render task exists. It does
+not save that temporary black frame. Build and flash passed (246512 bytes,
+76% app partition free). Three software resets recovered the unchanged
+current-scene generation 223 and all 100 presets; final AT queries confirmed
+the LED-34 red marker, brightness 96 and running state. Captures:
+`build-wroom-v020/startup-black-build.log`, `startup-black-flash.log` and
+the shared serial log. Rodrigo confirmed the green flash still occurs on
+manual reset with this build. This initialization
+cannot control the data line before `app_main()` starts, and the origin of
+the green transient is not yet established.
+
+Rodrigo explicitly accepted continuing on 2026-09-11 with this startup
+flash unresolved. It is a known non-blocking bench issue for this checkpoint,
+not a confirmed strip defect or a claimed firmware fix. The 100 named
+presets, capacity/replacement/reboot tests and automated checks are retained
+as completed evidence. Proceed to multiple physical outputs; do not reopen
+the startup investigation as a prerequisite without new evidence or request.
+
 ## Known gaps
 
 The agreed scope and proposed delivery order are tracked in the
 [EasyLED / pixels roadmap](../docs/pixels-roadmap.md), including named
 presets, 2D, multiple outputs, symmetric mirror, custom parameters and new
-effects. The next implementation brief is [named presets](../docs/pixels-presets-task.md).
+effects.
 
-- Named presets, 2D and multiple outputs are required for the EasyLED MVP.
-  Their AT/storage integration remains pending; this bench still uses the
-  fixed single-output, 1D scene schema described above.
+- Named presets are delivered locally (unreleased, automated hardware gates
+  and real-NVS capacity passed; startup flash accepted as a known issue).
+  2D and multiple outputs remain pending; this bench
+  still uses the fixed single-output, 1D scene schema described above.
 - No symmetric (palindromic) mirror effect exists. The existing per-segment
   `reversed` flag only reverses which physical index a segment's local
   position `i` maps to; it is a local index flip, not the requested

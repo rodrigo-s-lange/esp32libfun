@@ -1,3 +1,14 @@
 # esp32-specific defaults (classic, no native USB)
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Keep the WS2812 RMT stream serviced while scene/preset NVS writes disable
+# flash cache. IRAM placement alone does not keep the interrupt enabled.
+CONFIG_RMT_TX_ISR_CACHE_SAFE=y
+
+# Custom partition table: adds a "presets" NVS partition for 100 named
+# pixel-scene presets, alongside the existing "nvs" (current scene) and
+# "factory" partitions, unchanged -- see partitions_wroom_presets.csv for
+# the exact layout and capacity calculation.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_wroom_presets.csv"

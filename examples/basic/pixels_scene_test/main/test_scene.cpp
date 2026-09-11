@@ -1,20 +1,16 @@
 #include "scene_store.hpp"
+#include "nvs_mock.hpp"
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
 
 namespace {
 namespace comp = esp_pixels_composer;
+namespace mock = bench_mock;
 using bench::SceneRecord;
 int checks = 0, failures = 0;
 #define CHECK(condition) do { ++checks; if (!(condition)) { ++failures; \
     std::printf("SCENE FAIL line %d: %s\n", __LINE__, #condition); } } while (0)
-
-// Test-only durable slots. No NVS/partition erase or physical LEDs in this image.
-SceneRecord slots[2];
-unsigned writes = 0, commits = 0;
-esp_err_t init_error = ESP_OK;
-bool fail_write = false, fail_commit = false, fail_readback = false;
 
 void renewCrc(SceneRecord &r)
 {
@@ -96,59 +92,39 @@ void journalTests()
     static comp::AtScene scene, restored;
     static bench::SceneStore store, reboot, torn_reboot, failed_init;
     CHECK(store.load(scene) == ESP_ERR_NOT_FOUND);
-    CHECK(writes == 0 && commits == 0);
+    CHECK(mock::g_scene_writes == 0 && mock::g_scene_commits == 0);
     scene.count = 1; scene.segments[0].id = 1; scene.segments[0].stop = 25;
     scene.segments[0].params.color[0] = {15, 25, 35};
     CHECK(store.save(scene) == ESP_OK);
-    CHECK(writes == 1 && commits == 1 && slots[0].size != 0 && slots[1].size == 0);
-    CHECK(store.save(scene) == ESP_OK && writes == 1); // Unchanged config: no wear.
+    CHECK(mock::g_scene_writes == 1 && mock::g_scene_commits == 1 &&
+          mock::g_scene_slots[0].size != 0 && mock::g_scene_slots[1].size == 0);
+    CHECK(store.save(scene) == ESP_OK && mock::g_scene_writes == 1); // Unchanged config: no wear.
     scene.paused = true;
-    CHECK(store.save(scene) == ESP_OK && writes == 2 && slots[1].size != 0);
+    CHECK(store.save(scene) == ESP_OK && mock::g_scene_writes == 2 && mock::g_scene_slots[1].size != 0);
     CHECK(reboot.load(restored) == ESP_OK && restored.paused && restored.count == 1);
     CHECK(restored.segments[0].params.color[0].g == 25);
-    slots[1].bytes[40] ^= 1; // Latest slot damaged: previous complete slot survives.
+    mock::g_scene_slots[1].bytes[40] ^= 1; // Latest slot damaged: previous complete slot survives.
     CHECK(torn_reboot.load(restored) == ESP_OK && !restored.paused && restored.count == 1);
-    const SceneRecord previous = slots[0];
-    fail_write = true;
+    const mock::SceneMockSlot previous = mock::g_scene_slots[0];
+    mock::g_scene_fail_write = true;
     CHECK(torn_reboot.save(scene) == ESP_FAIL);
-    CHECK(slots[0].size == previous.size && std::memcmp(slots[0].bytes, previous.bytes, previous.size) == 0);
-    fail_write = false; fail_commit = true;
+    CHECK(mock::g_scene_slots[0].size == previous.size &&
+          std::memcmp(mock::g_scene_slots[0].bytes, previous.bytes, previous.size) == 0);
+    mock::g_scene_fail_write = false; mock::g_scene_fail_commit = true;
     CHECK(torn_reboot.save(scene) == ESP_FAIL);
-    CHECK(std::memcmp(slots[0].bytes, previous.bytes, previous.size) == 0);
-    fail_commit = false; fail_readback = true;
+    CHECK(std::memcmp(mock::g_scene_slots[0].bytes, previous.bytes, previous.size) == 0);
+    mock::g_scene_fail_commit = false; mock::g_scene_fail_readback = true;
     CHECK(torn_reboot.save(scene) == ESP_FAIL);
-    fail_readback = false;
+    mock::g_scene_fail_readback = false;
     CHECK(torn_reboot.save(scene) == ESP_OK); // Failure never poisons cache/retry.
     scene.count = 0;
     CHECK(torn_reboot.save(scene) == ESP_OK); // Empty configuration is durable too.
-    init_error = ESP_FAIL;
+    mock::g_scene_init_error = ESP_FAIL;
     CHECK(failed_init.load(restored) == ESP_FAIL);
     CHECK(failed_init.save(scene) == ESP_FAIL); // Never erase/reinitialize on failure.
-    init_error = ESP_OK;
+    mock::g_scene_init_error = ESP_OK;
 }
 } // namespace
-
-extern "C" esp_err_t __wrap_nvs_flash_init() { return init_error; }
-extern "C" esp_err_t __wrap_nvs_open(const char *, nvs_open_mode_t, nvs_handle_t *handle)
-{ *handle = 1; return ESP_OK; }
-extern "C" esp_err_t __wrap_nvs_get_blob(nvs_handle_t, const char *key, void *value, size_t *size)
-{
-    if (fail_readback) { return ESP_FAIL; }
-    const auto &r = slots[std::strcmp(key, "scene_a") == 0 ? 0 : 1];
-    if (r.size == 0) { return ESP_ERR_NVS_NOT_FOUND; }
-    if (*size < r.size) { *size = r.size; return ESP_ERR_NVS_INVALID_LENGTH; }
-    *size = r.size; std::memcpy(value, r.bytes, r.size); return ESP_OK;
-}
-extern "C" esp_err_t __wrap_nvs_set_blob(nvs_handle_t, const char *key, const void *value, size_t size)
-{
-    ++writes;
-    auto &r = slots[std::strcmp(key, "scene_a") == 0 ? 0 : 1];
-    r.size = size; std::memcpy(r.bytes, value, size);
-    if (fail_write) { r.bytes[0] ^= 1; return ESP_FAIL; } // Simulated torn inactive slot.
-    return ESP_OK;
-}
-extern "C" esp_err_t __wrap_nvs_commit(nvs_handle_t)
-{ ++commits; return fail_commit ? ESP_FAIL : ESP_OK; }
 
 int run_scene_tests()
 {
