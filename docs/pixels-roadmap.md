@@ -1,16 +1,20 @@
 # EasyLED / pixels roadmap
 
-Updated with Rodrigo on 2026-09-09. This roadmap belongs to the product
+Updated with Rodrigo on 2026-09-11. This roadmap belongs to the product
 application and external pixels libraries; it does not expand the HAL core.
 
 ## Validated baseline
 
-- Composer `97159d21ac5a6f4e1c1a71cc4792baade552b6df`: managed rendering,
-  segments, effects, AT composition controls and application-owned persistence.
-- Application validation checkpoint `ca596622eb1c5abfd658598471808f21c1362e87`.
+- Composer `0730626d2842a55d980b0848e636b579ecc81c62`: managed rendering,
+  segments, effects, AT controls and confirmed-scene export/load.
+- Application checkpoint `08966f65f297bf62b73a10d04f1b0b1ff01087f6`:
+  100 named presets, real-NVS capacity/replacement and reboot recovery.
 - WROOM-32 / COM6 / GPIO16 / 50 WS2812 RGB pixels, GRB, 115200 baud.
-- 3785 executed checks passed. Rodrigo confirmed the physical blend sequence,
-  reboot appearance and restoration of the saved Rainbow/Sinelon scene.
+- 5224 executed checks passed. Rodrigo confirmed red/blue preset recall
+  after reboot; all 100 RGB-per-pixel presets were saved and recalled with
+  serial geometry/color checks. Device remains on Pos100 (LED 34 red).
+- A single green flash during startup persists. Cause unconfirmed; Rodrigo
+  accepted continuing with it as a known non-blocking issue on 2026-09-11.
 
 ## Delivery order
 
@@ -21,8 +25,8 @@ here does not establish an agreed exclusion from the MVP.
 
 | Order | Delivery | Acceptance result |
 |---|---|---|
-| 1 — next | Named presets via AT, 100 positions | Save, list, load and delete named scenes; validate full capacity and recall distinct presets after reboot. Size storage for 100 maximum-sized scenes plus overhead/recovery space. |
-| 2 | Multiple physical outputs | Configure and drive at least two outputs through the product API, persist their configuration, and validate with separately connected strips. |
+| 1 — local checkpoint | Named presets via AT, 100 positions | Delivered: save/list/load/delete, full-size capacity and replacement, reboot recovery. Startup flash retained as an accepted known issue. |
+| 2 — next | Multiple physical outputs | Configure and drive at least two outputs through the product API, persist their configuration, and validate with separately connected strips. |
 | 3 | 2D / ledmap through AT and persistence | Configure a mapped panel, recall its scene after reboot, and demonstrate a spatial pattern/effect that proves the mapping. Add the minimum 2D effect needed for this demonstration. |
 | 4 | Symmetric mirror per segment | Demonstrate symmetric duplication, distinct from reverse, with documented odd/even-length behavior, AT control and persistence. |
 | 5 | Custom effect parameters via AT | Discover labels/usage flags, edit the three existing custom fields, publish and retain them without disturbing unrelated settings. |
@@ -47,4 +51,5 @@ operator visual confirmation. Announce and obtain confirmation before visual
 changes; arrange extra output wiring with Rodrigo before touching hardware.
 Do not infer push/tag/flash authorization from an earlier delivery.
 
-Next task: [named presets](pixels-presets-task.md).
+Next task: [multiple physical outputs](pixels-outputs-task.md).
+Previous brief: [named presets](pixels-presets-task.md).
