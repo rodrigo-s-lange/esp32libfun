@@ -103,3 +103,63 @@ the prior preset remained readable. Disabling the fault before that check
 fixed the test; the complete suite then passed. First-run capture:
 `build/presets-hardware-first-run.log`.
 These store tests use the RAM NVS mock; real-NVS capacity is a separate gate.
+
+### Multiple physical pixel outputs — hardware gates passed 2026-09-14
+
+`scene_codec.*`/`scene_store.*`/`preset_codec.*`/`preset_store.*` were
+extended for schema 2's own topology-aware header (see `main/README.md`'s
+own "Multiple physical pixel outputs" section for the full contract); this
+image was rebuilt against them and now additionally links a new
+`test_outputs.cpp` plus the real application `output_store.cpp`/
+`outputs_at.cpp`. The WROOM/COM6 run passed **5480 checks, zero failures**:
+1605 Composer, 1053 AT, 1246 scene, 1508 presets and 68 outputs. The checked
+mock allocation succeeded on hardware. Two erroneous test expectations
+were corrected before the final run: a schema-2 brightness byte can be 255,
+and an empty preset has both inner and outer CRC32. No production code was
+changed to satisfy these assertions. Capture:
+`build-wroom-rmt-safe/bench-outputs-20260914/scene-tests-final.log` in the
+application repository. The separate real-adapter suite also passed 172
+checks on GPIO4/5; see `examples/basic/pixels_adapter_test`.
+
+- `test_scene.cpp`'s `codecTests()` gained a global-logical-index
+  demonstration: two outputs (counts 50 and 20), one segment entirely on
+  each output plus one segment crossing the `[50,50)` boundary (`[45,55)`),
+  all validated only against the combined `totalPixels()` (70) -- proving
+  "no second numbering convention in `AT+SEGSET`" directly. `journalTests()`
+  gained three compatibility gates through `SceneStore` itself (not just the
+  codec): a real single-output scene recalled correctly after a second
+  output is appended (the original segment keeps its exact meaning, the
+  added output is simply uncovered), and the same record rejected -- via a
+  direct `decodeScene()` probe of the identical mock bytes a real reboot
+  would read, not a second `SceneStore` instance -- when the FIRST output's
+  own pin changes instead.
+- New `test_outputs.cpp`: `OutputStore`'s own A/B journal (load/save,
+  dedup-on-unchanged, torn-write fallback, write/commit/readback
+  failure-then-successful-retry, an invalid candidate rejected before any
+  write, shared `g_scene_init_error` for `nvs_flash_init()` failure -- see
+  its own top comment for why that lever is shared with `SceneStore`), then
+  one continuous three-phase `outputsAt` AT-library session reusing a
+  single "device" `OutputStore` instance the way one real boot would
+  (`AT+OUTSET` staging with four different rejected edits proven not to
+  have altered the staged candidate, `AT+OUTDEL` shifting slots down and
+  refusing to remove the last one, and a failed `AT+OUTSAVE` leaving the
+  previously durable configuration exactly as it was) -- each phase's own
+  persisted result independently re-verified through its own fresh
+  `OutputStore` instance (`load()` is call-once-per-instance, mirroring a
+  real reboot).
+- `main/nvs_mock.hpp`/`.cpp` gained a third mock target for `OutputStore`'s
+  own `outputs_a`/`outputs_b` keys/`"pixels_outputs"` namespace, dispatched
+  by a now namespace-aware `__wrap_nvs_open()` (handle 1 = scene, 2 =
+  presets, 3 = outputs) since `nvs_commit()` itself carries no key to
+  dispatch by.
+- The implementation initially left only 56 bytes of link-time DRAM margin.
+  Review moved the 100 x 2 preset-mock array to one checked allocation at test
+  startup; no gates were removed. This frees static placement space, not the
+  total runtime cost of the mock: its allocation must still succeed on the
+  device. The final reviewed build has 19944 bytes of link-time DRAM margin
+  (88.97% used; see `build/outputs-review-size.log`).
+  Maximum-size (32-segment, `kMaxOutputs`==2) preset round
+  trip stays a direct `encodePreset()`/`decodePreset()` call with no store
+  or mock involved, deliberately: the preset mock's own per-key buffer
+  (160 bytes) is sized only for the small 0-2 segment scenes every
+  `PresetStore`-level gate actually uses.

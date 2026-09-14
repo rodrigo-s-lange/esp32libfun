@@ -29,14 +29,16 @@ using PresetInfoVisitor = void (*)(void *context, const PresetInfo &info);
 class PresetStore {
 public:
     /// Opens the dedicated "presets" NVS partition/namespace and scans all
-    /// 100 positions for each one's newest valid record, without erasing
-    /// anything -- an empty/never-used partition is not an error, and a
-    /// position with no valid record in either key is simply not occupied
-    /// (an empty position need not have ever been written at all).
-    /// Deliberately no erase/retry on a partition/version error, same
-    /// policy `SceneStore::load()` already has.
+    /// 100 positions for each one's newest structurally valid record,
+    /// including records incompatible with the active topology. Incompatible
+    /// presets remain listed and occupy their slots; only load filters by
+    /// compatibility. Never select an older compatible version over a newer
+    /// valid incompatible version. Deliberately no erase/retry
+    /// on a partition/version error, same policy `SceneStore::load()`
+    /// already has.
+    /// @param topology The device's own active topology right now.
     /// @return ESP_OK, or an NVS error opening the partition/namespace.
-    esp_err_t begin();
+    esp_err_t begin(const Topology &topology);
 
     /// Invokes `fn(context, info)` once per occupied position, in slot
     /// order (never save order). Read-only; does not touch storage.
@@ -44,9 +46,11 @@ public:
     /// @param context Opaque, passed through to every `fn` call.
     void list(PresetInfoVisitor fn, void *context) const;
 
-    /// Saves `scene` under `name`, reusing `encodePreset()`. An existing
-    /// name is replaced deliberately, at its own current slot, targeting
-    /// the OTHER A/B key and only adopting it after a successful
+    /// Saves `scene` under `name`, encoded against `begin()`'s own topology
+    /// (reusing `encodePreset()`) -- saving a preset always uses the
+    /// ACTIVE topology, never an unpublished/staged output configuration.
+    /// An existing name is replaced deliberately, at its own current slot,
+    /// targeting the OTHER A/B key and only adopting it after a successful
     /// commit-then-read-back verification -- the prior valid record for
     /// that name is left completely untouched by any failure at or before
     /// that point. A name not already present claims the first free
@@ -63,13 +67,16 @@ public:
     esp_err_t save(const char *name, size_t name_len, const esp_pixels_composer::AtScene &scene);
 
     /// Loads and fully validates the named preset directly from its active
-    /// key; never mutates storage or this store's own cached metadata.
+    /// key against `begin()`'s own topology (reusing `decodePreset()`) --
+    /// never mutates storage or this store's own cached metadata. A preset
+    /// with an incompatible topology returns ESP_ERR_NOT_SUPPORTED; its
+    /// name and occupied slot remain available for later recall/removal.
     /// @param name Preset name.
     /// @param name_len Number of bytes in `name`.
     /// @param scene Receives the decoded scene on success only.
     /// @return ESP_OK. ESP_ERR_NOT_FOUND if no occupied position matches
-    ///         `name`. An invalid/corrupt/incompatible data error otherwise
-    ///         (see `decodePreset()`) -- `scene` is left unchanged.
+    ///         `name`. An invalid/corrupt data error otherwise (see
+    ///         `decodePreset()`) -- `scene` is left unchanged.
     esp_err_t load(const char *name, size_t name_len, esp_pixels_composer::AtScene &scene) const;
 
     /// Erases the named preset's position (both A/B keys) and marks it
@@ -95,6 +102,16 @@ private:
 
     nvs_handle_t handle_ = 0;
     esp_err_t init_error_ = ESP_ERR_INVALID_STATE;
+    // The topology `begin()` was called with -- `save()`/`load()` both
+    // validate/encode against this for the store's whole lifetime (a
+    // topology change takes effect on the next explicit reboot, same as
+    // AT+OUTSAVE's own documented contract; this store is never re-bound to
+    // a different topology mid-session). An occupied position whose own
+    // stored record is not a compatible prefix of this topology (see
+    // `isCompatiblePrefix()`) is simply not counted as occupied by THIS
+    // `begin()` scan -- its bytes are never modified or erased, and a later
+    // `begin()` against a compatible topology sees it again.
+    Topology topology_ = defaultTopology();
     Slot slots_[kPresetSlotCount];
     // Reused across calls -- this store has exactly one caller, never the
     // render task, so no locking is needed for its own scratch buffers.

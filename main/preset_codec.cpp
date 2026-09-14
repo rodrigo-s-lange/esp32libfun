@@ -42,11 +42,11 @@ bool validPresetName(const char *name, size_t len)
 }
 
 esp_err_t encodePreset(const char *name, size_t name_len, const esp_pixels_composer::AtScene &scene,
-                       uint64_t sequence, PresetRecord &record)
+                       const Topology &topology, uint64_t sequence, PresetRecord &record)
 {
     if (sequence == 0 || !validPresetName(name, name_len)) { return ESP_ERR_INVALID_ARG; }
     SceneRecord inner;
-    const esp_err_t err = encodeScene(scene, sequence, inner);
+    const esp_err_t err = encodeScene(scene, topology, sequence, inner);
     if (err != ESP_OK) { return err; }
     record.size = kPresetHeaderBytes + inner.size + 4;
     if (record.size > sizeof(record.bytes)) { return ESP_ERR_INVALID_SIZE; } // defensive; cannot happen
@@ -62,10 +62,13 @@ esp_err_t encodePreset(const char *name, size_t name_len, const esp_pixels_compo
     return ESP_OK;
 }
 
-esp_err_t decodePreset(const PresetRecord &record, char *name_out, size_t &name_len_out,
-                       esp_pixels_composer::AtScene &scene, uint64_t &sequence)
+static esp_err_t decodePresetChecked(const PresetRecord &record, const Topology *current_topology, char *name_out,
+                       size_t &name_len_out, esp_pixels_composer::AtScene &scene, uint64_t &sequence)
 {
-    if (record.size < kPresetHeaderBytes + kSceneHeaderBytes + 8 || record.size > sizeof(record.bytes)) {
+    // Coarse floor only -- header plus a minimal (possibly empty) inner
+    // scene plus its own CRC; decodeScene() below does the exact,
+    // schema-aware size validation.
+    if (record.size < kPresetHeaderBytes + 20 + 4 || record.size > sizeof(record.bytes)) {
         return ESP_ERR_INVALID_SIZE;
     }
     const uint8_t *crc_p = record.bytes + record.size - 4;
@@ -95,7 +98,8 @@ esp_err_t decodePreset(const PresetRecord &record, char *name_out, size_t &name_
     const uint8_t *inner_sequence = inner.bytes + 8;
     if (get(inner_sequence, 8) != generation) { return ESP_ERR_INVALID_ARG; }
     uint64_t inner_generation = 0;
-    const esp_err_t err = decodeScene(inner, scene, inner_generation);
+    const esp_err_t err = current_topology == nullptr ? decodeStoredScene(inner, scene, inner_generation) :
+        decodeScene(inner, *current_topology, scene, inner_generation);
     if (err != ESP_OK) { return err; }
 
     std::memcpy(name_out, name_field, name_len);
@@ -103,5 +107,17 @@ esp_err_t decodePreset(const PresetRecord &record, char *name_out, size_t &name_
     name_len_out = name_len;
     sequence = generation;
     return ESP_OK;
+}
+
+esp_err_t decodePreset(const PresetRecord &record, const Topology &current_topology, char *name_out,
+                       size_t &name_len_out, esp_pixels_composer::AtScene &scene, uint64_t &sequence)
+{
+    return decodePresetChecked(record, &current_topology, name_out, name_len_out, scene, sequence);
+}
+
+esp_err_t decodeStoredPreset(const PresetRecord &record, char *name_out, size_t &name_len_out,
+                             esp_pixels_composer::AtScene &scene, uint64_t &sequence)
+{
+    return decodePresetChecked(record, nullptr, name_out, name_len_out, scene, sequence);
 }
 } // namespace bench

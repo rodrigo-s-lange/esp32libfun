@@ -7,12 +7,13 @@
 // Shared linker-wrapped NVS mock for this on-target test image
 // (pixels_scene_test): every `__wrap_nvs_*` symbol is defined exactly once,
 // in nvs_mock.cpp, since `-Wl,--wrap` substitutes it link-wide for the
-// WHOLE binary -- test_scene.cpp (SceneStore, default "nvs" partition,
-// keys scene_a/scene_b) and test_presets.cpp (PresetStore, named "presets"
-// partition, keys p00a..p99b) both drive fault injection through this one
-// shared mock instead of each defining its own wraps. No real NVS/
-// partition access anywhere in this binary, regardless of which store is
-// under test.
+// WHOLE binary -- test_scene.cpp (SceneStore, namespace "pixels_scene",
+// keys scene_a/scene_b), test_presets.cpp (PresetStore, named "presets"
+// partition, keys p00a..p99b), and test_outputs.cpp (OutputStore, namespace
+// "pixels_outputs", keys outputs_a/outputs_b) all drive fault injection
+// through this one shared mock instead of each defining its own wraps. No
+// real NVS/partition access anywhere in this binary, regardless of which
+// store is under test.
 
 namespace bench_mock {
 
@@ -51,7 +52,7 @@ struct PresetMockSlot {
     size_t size = 0;
 };
 
-extern PresetMockSlot g_preset_slots[kPresetMockSlots][2]; // [slot][a=0/b=1]
+extern PresetMockSlot (*g_preset_slots)[2]; // Allocated once at test startup; [slot][A/B].
 extern unsigned g_preset_writes;
 extern unsigned g_preset_commits;
 extern unsigned g_preset_erases;
@@ -60,7 +61,37 @@ extern bool g_preset_fail_write;
 extern bool g_preset_fail_commit;
 extern bool g_preset_fail_readback;
 
-/// Resets every counter/flag/slot above (both mocks) to its initial state.
+// --- output-topology mock (OutputStore) --------------------------------
+//
+// A separate namespace ("pixels_outputs") from SceneStore's own default
+// partition ("pixels_scene"), but the SAME __wrap_nvs_open()/
+// __wrap_nvs_flash_init() entry points (both call plain nvs_flash_init() +
+// nvs_open(), not nvs_flash_init_partition()/nvs_open_from_partition() --
+// only the preset store uses those). __wrap_nvs_open() is namespace-aware
+// (handle=1 for "pixels_scene", handle=3 for "pixels_outputs") so
+// nvs_commit(), which carries no key of its own, can still tell the two
+// apart; get_blob()/set_blob()/erase_key() dispatch by key shape
+// ("outputs_a"/"outputs_b"), same as the other two mocks. There is
+// deliberately no separate `g_output_init_error`: __wrap_nvs_flash_init()
+// itself carries no namespace/key either, so a `nvs_flash_init()` failure
+// is injected jointly for SceneStore and OutputStore via `g_scene_init_error`
+// -- the same limitation this shared entry point already has for those two.
+
+constexpr size_t kOutputMockBytes = 64; // >= output_store.hpp's kRecordBytes (31 at kMaxOutputs==2)
+
+struct OutputMockSlot {
+    uint8_t bytes[kOutputMockBytes]{};
+    size_t size = 0;
+};
+
+extern OutputMockSlot g_output_slots[2]; // outputs_a, outputs_b
+extern unsigned g_output_writes;
+extern unsigned g_output_commits;
+extern bool g_output_fail_write;
+extern bool g_output_fail_commit;
+extern bool g_output_fail_readback;
+
+/// Resets every counter/flag/slot above (all three mocks) to its initial state.
 /// Called once, before any `run_*_tests()`, from this image's own
 /// `app_main()` -- never mid-suite, so no runner needs to guess what an
 /// earlier one left behind.

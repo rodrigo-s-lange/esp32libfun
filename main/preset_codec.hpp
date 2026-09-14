@@ -11,7 +11,11 @@ constexpr size_t kPresetNameFieldBytes = 32; ///< fixed on-disk field (zero-padd
 constexpr size_t kPresetHeaderBytes =
     4 /*magic*/ + 2 /*schema*/ + 2 /*size*/ + 8 /*generation*/ + 1 /*name_len*/ + kPresetNameFieldBytes; // 49
 /// Maximum total record size: header + a maximum-sized scene_codec record + a trailing CRC32.
-constexpr size_t kPresetRecordBytes = kPresetHeaderBytes + kSceneRecordBytes + 4; // 49+1124+4=1177
+/// At kMaxOutputs==2, MAX_SEGMENTS==32: 49 + 1128 + 4 = 1181 (schema-2's own
+/// variable-size header, kSceneHeaderBytesV2Max==36, makes kSceneRecordBytes
+/// 4 bytes bigger than the single-output-only schema-1 baseline of 1124 --
+/// see main/README.md's own record-size recalculation for this delivery).
+constexpr size_t kPresetRecordBytes = kPresetHeaderBytes + kSceneRecordBytes + 4;
 
 struct PresetRecord {
     uint8_t bytes[kPresetRecordBytes]{};
@@ -29,26 +33,36 @@ bool validPresetName(const char *name, size_t len);
 /// Encodes one named preset: an explicit little-endian header (magic,
 /// schema, self-describing size, a 64-bit generation, the name, zero-padded)
 /// wrapping the existing scene_codec's own complete, self-validating
-/// `SceneRecord` verbatim (same `sequence` for both), plus a trailing CRC32
-/// over the whole record -- the inner scene's own CRC alone would not catch
-/// a corrupted name/header. `record.size` varies with the scene's own
-/// segment count, the same discipline `encodeScene()` itself already has;
-/// no NVS access.
+/// `SceneRecord` verbatim (same `sequence` for both, same `topology` --
+/// see `encodeScene()`'s own doc), plus a trailing CRC32 over the whole
+/// record -- the inner scene's own CRC alone would not catch a corrupted
+/// name/header. `record.size` varies with both the scene's own segment
+/// count and `topology.count`, the same discipline `encodeScene()` itself
+/// already has; no NVS access.
 /// @param name Preset name; validated by `validPresetName()`.
 /// @param name_len Number of bytes in `name`.
-/// @param scene Source scene (1D, fixed bench topology, schema 1 rules).
+/// @param scene Source scene (1D; every segment validated against
+///        `topology.totalPixels()`).
+/// @param topology The device's own active topology at save time -- see
+///        `encodeScene()`'s own doc; saving a preset always uses the
+///        ACTIVE topology, never an unpublished/staged output configuration.
 /// @param sequence Monotonic per-position generation; zero is reserved.
 /// @param record Receives the versioned, CRC-protected bytes.
 /// @return ESP_OK, or an `encodeScene()`/name validation error.
 esp_err_t encodePreset(const char *name, size_t name_len, const esp_pixels_composer::AtScene &scene,
-                       uint64_t sequence, PresetRecord &record);
+                       const Topology &topology, uint64_t sequence, PresetRecord &record);
 
 /// Validates every byte/field -- magic/schema/size, the outer CRC32, zero
 /// padding beyond the declared name length, a valid name, the embedded
-/// scene_codec record's own full validation, and that the embedded record's
-/// own generation matches this record's outer one -- before changing any
-/// output; no NVS access.
+/// scene_codec record's own full validation (including its topology
+/// compatibility against `current_topology`, see `decodeScene()`'s own
+/// doc), and that the embedded record's own generation matches this
+/// record's outer one -- before changing any output; no NVS access.
 /// @param record Complete record including its trailing CRC.
+/// @param current_topology The device's own active topology right now --
+///        loading a preset must never unexpectedly reassign physical pins,
+///        so an incompatible preset (see `isCompatiblePrefix()`) is
+///        rejected here, before anything changes.
 /// @param name_out Receives the nul-terminated name on success only; must
 ///        have room for at least `kPresetNameMaxLen + 1` bytes.
 /// @param name_len_out Receives the name length (excluding the terminator)
@@ -56,7 +70,17 @@ esp_err_t encodePreset(const char *name, size_t name_len, const esp_pixels_compo
 /// @param scene Receives the decoded scene on success only.
 /// @param sequence Receives the generation on success only.
 /// @return ESP_OK, or an invalid/incompatible/corrupt data error.
-esp_err_t decodePreset(const PresetRecord &record, char *name_out, size_t &name_len_out,
-                       esp_pixels_composer::AtScene &scene, uint64_t &sequence);
+esp_err_t decodePreset(const PresetRecord &record, const Topology &current_topology, char *name_out,
+                       size_t &name_len_out, esp_pixels_composer::AtScene &scene, uint64_t &sequence);
+
+/// Validates stored content for cataloging, regardless of the current device topology.
+/// @param record Complete stored bytes.
+/// @param name_out Receives the name on success (at least kPresetNameMaxLen+1 bytes).
+/// @param name_len_out Receives the name length on success.
+/// @param scene Receives the structurally valid scene, not permission to apply it.
+/// @param sequence Receives its generation on success.
+/// @return ESP_OK or validation error; use decodePreset before applying a scene.
+esp_err_t decodeStoredPreset(const PresetRecord &record, char *name_out, size_t &name_len_out,
+                             esp_pixels_composer::AtScene &scene, uint64_t &sequence);
 
 } // namespace bench

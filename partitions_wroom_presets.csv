@@ -8,13 +8,19 @@
 # "pixels_presets", used only by main/preset_store.cpp) for 100 named
 # presets with A/B redundancy per position.
 #
-# Capacity: each preset record is at most 1177 bytes (kPresetRecordBytes,
-# main/preset_codec.hpp: a 32-segment scene wrapped with a name/header/CRC).
-# NVS v2 uses a blob index plus chunk headers. At most 41 entries x 32 =
-# 1312 bytes per record here, allowing a split across two pages. 100 x 2
-# A/B records = 262400 bytes of record entries. The 80-page partition has
-# 10080 usable entries, leaving 1880 beyond those 8200 record entries for
-# namespace metadata, free-page reserve, fragmentation and updates.
+# Capacity: each preset record is at most 1181 bytes (kPresetRecordBytes,
+# main/preset_codec.hpp: a 32-segment, kMaxOutputs==2 scene wrapped with a
+# name/header/CRC -- recalculated for the multiple-physical-outputs
+# delivery; was 1177 bytes single-output-only). NVS v2 uses a blob index
+# plus chunk headers. At most 41 entries x 32 = 1312 bytes per record here,
+# allowing a split across two pages -- UNCHANGED from the single-output
+# figure: ceil(1181/32) == ceil(1177/32) == 37 data entries, the same
+# 32-byte-entry rounding bucket, so the 4-byte growth costs zero additional
+# entries. 100 x 2 A/B records = 262400 bytes of record entries. The
+# 80-page partition has 10080 usable entries, leaving 1880 beyond those
+# 8200 record entries for namespace metadata, free-page reserve,
+# fragmentation and updates -- still comfortably fits; no partition layout
+# change was needed for this delivery.
 # Full-capacity real-NVS execution remains a bench gate; see main/README.md.
 nvs,      data, nvs,     ,        0x6000,
 phy_init, data, phy,     ,        0x1000,

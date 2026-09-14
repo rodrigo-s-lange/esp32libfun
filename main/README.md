@@ -1,10 +1,14 @@
 # WROOM-32 pixels AT bench
 
-The root application drives 50 WS2812 pixels in GRB order on GPIO16.
-At application startup it initializes the sink and sends a completed black
-frame before reading NVS. The persistence bridge renders the recovered
-scene once during attachment; the managed task later continues rendering.
-This also clears the strip when booting with
+The root application drives WS2812 pixels on one or more independently
+configured GPIO outputs; the fixed boot default remains 50 pixels in GRB
+order on GPIO16 unless a second/different output has been saved via
+`AT+OUTSET`/`AT+OUTSAVE` -- see "Multiple physical pixel outputs" below.
+At application startup it initializes every configured sink and sends a
+completed black frame on each after reading output configuration and before
+reading scene/preset NVS. The persistence bridge
+renders the recovered scene once during attachment; the managed task later
+continues rendering. This also clears every strip when booting with
 no valid saved scene; a runtime empty publication still behaves as below.
 `Composer::start()` owns rendering; `app_main()` returns after setup. The
 adapter and Composer have static lifetime. Boot restores the last saved scene
@@ -19,7 +23,7 @@ setters take effect only after `AT+SEGPUB`. `PIXELS_PRESETS` (unreleased)
 is a second, application-owned AT library for named
 presets -- see its own section below.
 
-## Automatic configuration retention (scene schema 1)
+## Automatic configuration retention (scene schema 1 read, schema 2 written)
 
 - A confirmed `AT+SEGPUB` saves the entire ordered scene. `AT+COMPAUSE=0|1`
   saves global pause with the last confirmed segments, never intervening staged
@@ -27,22 +31,31 @@ presets -- see its own section below.
 - Retained: IDs, start/stop, effects, reverse, segment state, brightness, blend,
   opacity, speed, intensity, palette, color source, all three RGB colors, all
   three custom parameters, restart tokens, global brightness and global pause.
-- Fixed GPIO16/50 pixels/GRB/RGB/identity mapping is checked at load. Arbitrary
-  output topology, ledmaps and 2D scene persistence are **not** provided by this
-  first application schema.
+- Output topology (pins/counts/wire order, 1..`kMaxOutputs` slots) is embedded
+  in every record's own header as of schema 2 (this delivery) -- see
+  "Multiple physical pixel outputs" below for how a record's own topology is
+  checked for compatibility against the device's current one before it is
+  ever applied. Ledmaps and 2D scene persistence remain **not** provided by
+  this application schema.
 - Not retained: animation time, effect runtime, pixel/history buffers or task
   handles. Effects restart on boot. Paused segments/global pause restore as
   paused with initially black buffers until resumed; this is configuration
   restoration, not framebuffer restoration.
 - Records use explicit little-endian fields, schema/catalog versions, a 64-bit
-  generation and CRC32, not raw C++ struct bytes. Maximum record: 1124 bytes for
-  32 segments; two segments: 104 bytes.
+  generation and CRC32, not raw C++ struct bytes. Schema 1 (single output
+  only, fixed 32-byte header) is still read on boot/recall, never written
+  again. Every new save writes schema 2 (variable-size header, 31 bytes at
+  one output, up to 36 at `kMaxOutputs`==2) -- see "Multiple physical pixel
+  outputs" for the full recalculated maximum record size.
 - Namespace `pixels_scene`, keys `scene_a`/`scene_b` in the existing NVS
   partition. Save targets the inactive key, commits and reads back; it does not
-  overwrite the last valid key. Boot selects the newest valid compatible record;
-  a torn/corrupt latest record can fall back to the preceding one. Redundancy
-  within one partition does not protect against loss of both records or total
-  flash failure. No automatic NVS erase is used.
+  overwrite the last valid key. Boot selects the newest valid COMPATIBLE
+  record (see below); a torn/corrupt/incompatible latest record can fall back
+  to the preceding one. Redundancy within one partition does not protect
+  against loss of both records or total flash failure. No automatic NVS erase
+  is used, and no record is ever bulk-rewritten at boot as a migration --
+  schema 1 records stay schema 1 (and stay readable) until their position is
+  next saved by this application.
 - Identical canonical configurations are not rewritten. Saves run synchronously
   in the AT task, never per-frame or in the Composer render task. External
   automation should group edits into deliberate publishes to limit flash wear.
@@ -76,7 +89,7 @@ Composer/FX checkpoints are not accidentally compiled alongside the new line.
 
 | Component | Checkout | Validated revision |
 |---|---|---|
-| Composer and its adapter | `../esp_pixels_composer` | `0730626d2842a55d980b0848e636b579ecc81c62` on `feature/at-scene-persistence`: persistence, AT composition controls and confirmed-scene export/load; unreleased over published `v0.2.0` |
+| Composer and its adapter | `../esp_pixels_composer` | `07eb426a9c72f4b53062ba62d3a9a63370534755` on `feature/at-scene-persistence`: two physical outputs plus persistence, AT composition controls and confirmed-scene export/load; unreleased over published `v0.2.0` |
 | FX | `../esp_pixels_fx` | local integration `e7e0ba391473005137f6fd4dcf70b4355975b6ac`; not yet published |
 | Pixels transport | `framework/libs/esp_pixels` | `5d7db6b7ce17935ec5213e241c66055787726564`, with existing local README/AT changes preserved |
 | Core | this repository's `framework/core` | current application checkout |
@@ -360,7 +373,256 @@ presets, capacity/replacement/reboot tests and automated checks are retained
 as completed evidence. Proceed to multiple physical outputs; do not reopen
 the startup investigation as a prerequisite without new evidence or request.
 
+## Multiple physical pixel outputs — validated locally, unreleased
+
+Claude implemented this brief (`docs/pixels-outputs-task.md`) against app
+baseline `08966f65f297bf62b73a10d04f1b0b1ff01087f6` and Composer baseline
+`0730626d2842a55d980b0848e636b579ecc81c62`, with no Composer core change
+(its existing multi-output-slot `build()`/`renderFrame()` support already
+covered this; only `adapter_esp_pixels` and this application needed new
+code). Codex reviewed the integration and executed the automated hardware
+gates on 2026-09-14. The application now boots with GPIO16/50 and GPIO17/12
+GRB outputs. Rodrigo confirmed the two colors, the segment crossing the
+output boundary, preset recall after explicit blackout and reboot recovery.
+
+### Adapter: `EspPixelsSink::kMaxOutputs == 2`
+
+`adapter_esp_pixels` now drives up to `kMaxOutputs` (2) independently wired
+`esp_pixels::Pixels` instances/RMT channels, one per output slot. `init()`
+is unchanged (signature and behavior) and always configures slot 0; the new
+`addOutput()` appends slot 1 (and so on, up to `kMaxOutputs`). This is this
+adapter's own delivered ceiling for this cut, distinct from two other
+numbers that must never be conflated with it: `esp_pixels_composer::
+MAX_OUTPUTS` (8, a software table size only) and the ESP32 classic's own 8
+total hardware RMT TX channels, shared with anything else in the build using
+RMT. Rejects a duplicate `Pixels` instance or GPIO pin before any mutation;
+on a partial `addOutput()` failure only that attempt's own (not yet
+committed) resources are released, every already-configured slot is
+untouched. `commit()`/`wait()` start and drain every configured slot
+regardless of an earlier slot's own failure -- an in-flight buffer is never
+reused or freed while its own transmission might still be reading it; `end()`
+tracks per-slot drain state across retries so a failed `end()` can be
+retried safely without re-waiting an already-drained slot. `synchronized_start`
+stays `false` (not implemented). See `adapter_esp_pixels/include/
+esp_pixels_composer_adapter_esp_pixels.hpp` and `adapter_esp_pixels/test/
+test_adapter.cpp` (172 checks passed on-target) for the full contract
+and its gates.
+
+### Output topology AT library (`PIXELS_OUTPUTS`) — unreleased
+
+A new, application-owned AT library (`main/output_config.hpp`,
+`main/output_store.*`, `main/outputs_at.*`), entirely separate from
+`PIXELS_COMPOSER`/`PIXELS_PRESETS`: discover it the same way, `AT+HELP?`
+then `AT+PIXELS_OUTPUTS?`. Output pins/counts/wire order are
+application/device configuration, deliberately separate from effect
+segments and from the transport-neutral Composer.
+
+- `AT+OUT?` -- lists ACTIVE, SAVED (next boot) and STAGED output configuration,
+  one `OUT active|saved|staged slot=<n> pin=<p> count=<c> order=<order>`
+  line per configured slot, then `OUT active=<n> staged=<m>`. Query only.
+- `AT+OUTSET=<slot>,<pin>,<count>,<order>` -- stages one output slot in the
+  candidate (`slot` 0..`kMaxOutputs-1`; setting a slot past the candidate's
+  current size grows it). Accepts `GRB`, `RGB`, `RBG`, `GBR`, `BRG`, `BGR`
+  independently per output. The WHOLE candidate is validated (no duplicate
+  pins, only output-capable GPIOs, excluding flash GPIO6..11 and console
+  GPIO1/3; 1..2048 pixels per output; valid color order;
+  1..`kMaxOutputs` slots) before the edit is kept -- an invalid edit leaves
+  the staged candidate completely unchanged. Stages only, never the active
+  topology.
+- `AT+OUTDEL=<slot>` -- removes one slot from the candidate, shifting later
+  slots down to stay dense (no holes). Rejected if it would leave zero
+  slots. Stages only.
+- `AT+OUTSAVE` -- validates the whole staged candidate and persists it.
+  **Takes effect on the next explicit reboot only** -- it never live-replaces
+  the running adapter/Composer topology. A candidate incompatible with the
+  nonempty durable current scene is rejected; explicitly clear/publish that
+  scene before removing/changing its output prefix. Subsequent scene saves
+  are checked against the next-boot topology too: after saving an incompatible
+  topology for an empty scene, reboot before saving a new scene. Otherwise
+  the existing `applied; NOT saved` error is reported and old storage stays
+  intact. A topology-save failure reports the error and leaves the previously
+  saved configuration completely unchanged (the candidate stays staged for
+  a retry).
+
+Default boot remains GPIO16/50/GRB (unchanged since before this delivery); a
+second output is only ever activated by an explicit `AT+OUTSET`+`AT+OUTSAVE`
+followed by a reboot. Wiring/count for a real second strip is to be agreed
+with Rodrigo during the physical bench setup, after this implementation.
+
+### Global logical indices across outputs
+
+Segments retain one GLOBAL logical index space across every configured
+output, in slot order -- there is no second, per-output numbering
+convention in `AT+SEGSET`. For output counts 50 and 20: output 0 is
+`[0,50)`, output 1 is `[50,70)`; a segment may address either range
+independently, or cross the boundary between them (e.g. `[45,55)`) -- every
+segment is validated only against the topology's own combined
+`totalPixels()` (70 here), never against either output's own count
+individually. `examples/basic/pixels_scene_test`'s own `codecTests()`
+demonstrates exactly this (independent segments on each output, plus one
+crossing segment, plus rejection one past the combined total).
+
+### Persistence/compatibility across topology changes
+
+A record's own embedded topology (pins/counts/order, 1..`kMaxOutputs`
+slots) must be an exact-match **prefix** of the device's current topology to
+be recalled (`bench::isCompatiblePrefix()`, `main/output_config.hpp`): every
+slot the record itself knows about must match the current device's own
+same-index slot exactly; the current device may have MORE slots than the
+record (an old single-output record recalled after a second output was
+appended -- the original slot 0 keeps its exact meaning, the added slot is
+simply not covered by any of that record's own segments, and renders black),
+but never FEWER. This applies uniformly to the current-scene journal
+(`SceneStore`) and every one of the 100 named presets (`PresetStore`) alike.
+
+- Loading a preset never unexpectedly reassigns physical pins: an
+  incompatible preset is rejected before anything changes, with the
+  previously active scene/staged table left completely untouched, and the
+  stored record itself is never modified either way -- it becomes
+  recallable again the moment the topology it expects is restored.
+- The preset catalog always selects the newest structurally valid A/B
+  record, regardless of active topology. Incompatible presets remain listed
+  and occupy their slots; loading reports an incompatible pin/count/order
+  error. A new name cannot overwrite their slots or select an older version
+  merely because that version happens to be compatible.
+- Saving a preset (`AT+PRESETSAVE`) always uses the device's own **active**
+  topology, never an unpublished/staged `AT+OUTSET` edit.
+- All 100 existing named presets and the existing current-scene record
+  remain readable exactly as before (schema 1, single-output, unchanged) --
+  see `examples/basic/pixels_scene_test/main/test_scene.cpp`'s own
+  compatibility gates (recall after an output is appended; rejection when
+  the first output itself changes) and the "Automatic configuration
+  retention" section above for the schema-1/schema-2 read/write split.
+- No record is ever bulk-rewritten at boot as a migration, and NVS is never
+  erased as part of this delivery.
+
+### Recalculated maximum record size and partition fit
+
+Schema 2's own variable-size header grows from schema 1's fixed 32 bytes to
+31 bytes at one output up to 36 bytes at `kMaxOutputs`==2 (`main/
+scene_codec.hpp`'s own `kSceneHeaderBytesV2Max`) -- a **4-byte** increase at
+the worst case (two outputs) over the old single-output-only maximum.
+Recalculated maximums, 32 segments (`comp::MAX_SEGMENTS`), `kMaxOutputs`==2:
+
+| Record | Old max (schema 1 only) | New max (schema 2, 2 outputs) |
+|---|---|---|
+| Scene (`kSceneRecordBytes`) | 1124 bytes | **1128 bytes** |
+| Preset (`kPresetRecordBytes`) | 1177 bytes | **1181 bytes** |
+
+The existing 320 KiB `presets` partition (`partitions_wroom_presets.csv`)
+still fits comfortably, **no partition layout change is needed**: both 1177
+and 1181 bytes round up to the same `ceil(x/32) == 37` NVS data entries (the
+4-byte growth falls inside the same 32-byte-entry bucket), so the existing
+worst-case accounting of 41 entries/record, 8200 entries for all 100 A/B
+preset positions, and 1880 entries of headroom out of the partition's 10080
+usable entries, is unchanged -- see that file's own updated comment for the
+full recalculation. `OutputStore`'s own record is tiny (<=31 bytes at
+`kMaxOutputs`==2) and reuses the existing 24 KiB default `nvs` partition
+(namespace `pixels_outputs`, keys `outputs_a`/`outputs_b`, the same A/B
+journal discipline `SceneStore` already has) -- no new partition needed for
+it either.
+
+### Test coverage added
+
+- `adapter_esp_pixels/test/test_adapter.cpp` (172 checks passed on-target
+  through `examples/basic/pixels_adapter_test`, GPIO4/5 disconnected):
+  two-real-output state machine, independent per-slot wire order,
+  `addOutput()` duplicate-pixels/duplicate-pin/`kMaxOutputs`-exceeded
+  rejection (checked in that priority order), a faulted single slot's own
+  `show()` failure not blocking the other slot's real `commit()`/`wait()`
+  drain, and `end()`'s own multi-slot partial-drain-failure/retry contract.
+- `examples/basic/pixels_scene_test` (5480 checks passed on-target with
+  RAM-mocked NVS -- see its own README): `test_scene.cpp`'s
+  compatibility gates (append-then-recall, changed-first-output-rejected)
+  and the global-index boundary-crossing demonstration; a new
+  `test_outputs.cpp` (`OutputStore` journal: load/save/torn-write/
+  failure-retry/invalid-candidate-rejection, mirroring `SceneStore`'s own
+  gates; `outputsAt` AT-library integration: staged-only mutation with a
+  whole-candidate validation, rejected edits leaving the candidate
+  unaffected, `AT+OUTDEL` shifting slots down, and a failed `AT+OUTSAVE`
+  preserving the previously durable configuration exactly). The existing
+  5224-check baseline is extended, never shrunk, by all of the above.
+
+### Bench sequence
+
+Bench 2026-09-14: application and both suites flashed with verification at
+115200 baud (higher-speed backup reads lost communication; no writes were
+attempted at those speeds). Before testing, the complete 24 KiB `nvs` and
+320 KiB `presets` partitions were copied and verified against flash.
+GPIO16/50 and GPIO17/12 GRB were configured through `OUTSET`/`OUTSAVE` and
+confirmed after reboot. The original Pos100 scene remained LED 34 red,
+brightness 96, with the second output uncovered/black by the scene definition.
+
+Real NVS accepted **201 maximum-size 1181-byte preset writes**: all 100
+existing positions twice, then Pos100 once more, filling both journal
+sides with schema-2/two-output/32-segment records. A new 101st name was
+rejected with `ESP_ERR_NO_MEM`. After software reboot, all 100 test records
+loaded successfully (305 command checks total). This kept the same marker
+scene throughout; it does not prove visual boundary routing.
+The original `presets` partition was then restored and verified against its
+backup (SHA-256
+`F1A33D330EB20A7D38B3AFAB4EEBF7856F16FE7E7F661B62A6DECDF68FBF398D`).
+The restored application lists exactly Pos001..Pos100, with the two-output
+configuration retained. Logs are in
+`build-wroom-rmt-safe/bench-outputs-20260914/` (`capacity.log`,
+`presets-restore-verify.log`, `restored.log`).
+
+Rodrigo then confirmed the complete physical sequence: GPIO16's 50 pixels
+red, GPIO17's 12 blue, followed by one green segment at global `[45,55)`
+(last five pixels of output 0 and first five of output 1). Pos100 was used
+temporarily for the three-segment scene. Disabling all three segments
+produced an explicit blackout; preset recall and software reboot recovered
+the same scene. The first script's empty publication retained the preceding
+frame, as documented above, so that blackout step was repeated correctly;
+no production change was needed.
+
+The original preset partition was restored again and verified against the
+same backup. All **100 legacy presets** then loaded on the two-output
+topology, each marker's index, RGB color and Active state checked through AT
+(203 command checks passed). Final reboot retained GPIO16/50 and GPIO17/12,
+exactly Pos001..Pos100 in the catalog, and the original Pos100 scene:
+physical LED 34 red, brightness 96, second output black. Captures:
+`visual.log`, `visual-recall.log`, `presets-final-verify.log`,
+`legacy-recall.log` and `final-state.log` in the same directory.
+This delivery is checkpointed locally, without push or tag.
+
+1. Agree the second strip's physical pin/pixel count with Rodrigo; wire it.
+2. Build/flash `build-wroom-rmt-safe` with the new adapter/application stack;
+   confirm the `PIXELS_AT` ready line reports `outputs=1 total=50` (the
+   unchanged default) and `persistence=scene-v2`.
+3. `AT+OUTSET=1,<pin>,<count>,GRB` then `AT+OUTSAVE` (expect the "next
+   reboot" wording), then reboot; confirm `AT+OUT?` now reports two active
+   outputs and the boot log's own `outputs=2 total=<50+count>`.
+4. Stage two segments with different colors/effects, one per output (e.g.
+   `AT+SEGSET=1,0,50,<effect>` and `AT+SEGSET=2,50,<50+count>,<effect>`),
+   plus one segment crossing the boundary (e.g. `[45,55)`); `AT+SEGPUB`;
+   visually confirm all three regions on the physical strips.
+5. The store is already full: `TwoStrips` cannot be a 101st preset. Arrange
+   a verified backup and a temporary test position before the named
+   two-output save/load check; restore the original preset data afterward.
+   Do not silently overwrite a user's preset to make room for a test.
+6. `AT+RESET` with no further commands; confirm current two-output scene
+   retention. After restoring the original preset data, `AT+PRESETS?`
+   must report exactly `Pos001` through `Pos100`, each loadable on output 0
+   with output 1 black. Preserve both the names and their original records.
+7. Capture serial logs for each step, the same way every earlier bench run
+   in this README has.
+
 ## Known gaps
+
+Review on 2026-09-14 fixed incompatible presets being cataloged as free,
+output-save rejection/pending-topology checks for current-scene retention,
+pin/count/order validation, all six RGB orders, truncated-record checks and
+validation against the stored scene's own bounds. Added regression gates
+and a separate `examples/basic/pixels_adapter_test` runner on unconnected
+GPIO4/5. All 5652 automated checks passed on the WROOM/COM6. Two incorrect
+test expectations found during execution were fixed: brightness 255 is
+valid, and an empty preset includes both its inner and outer CRC32.
+The application was restored with its unchanged partition layout and
+RMT ISR cache safety enabled. GPIO16/50 and GPIO17/12 survived software
+reboot with the original current scene and 100 preset names still present.
+Logs/backups: `build-wroom-rmt-safe/bench-outputs-20260914/`.
+Rodrigo confirmed physical boundary routing and preset/reboot recovery.
 
 The agreed scope and proposed delivery order are tracked in the
 [EasyLED / pixels roadmap](../docs/pixels-roadmap.md), including named
@@ -369,8 +631,10 @@ effects.
 
 - Named presets are delivered locally (unreleased, automated hardware gates
   and real-NVS capacity passed; startup flash accepted as a known issue).
-  2D and multiple outputs remain pending; this bench
-  still uses the fixed single-output, 1D scene schema described above.
+  Multiple physical outputs are now implemented locally too (unreleased,
+  hardware gates passed and visually confirmed -- see the section
+  above). 2D remains pending; this bench still uses the 1D scene schema
+  described above.
 - No symmetric (palindromic) mirror effect exists. The existing per-segment
   `reversed` flag only reverses which physical index a segment's local
   position `i` maps to; it is a local index flip, not the requested

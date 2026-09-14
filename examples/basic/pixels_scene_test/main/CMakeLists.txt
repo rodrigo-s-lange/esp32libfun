@@ -1,6 +1,7 @@
-idf_component_register(SRCS "main.cpp" "nvs_mock.cpp" "test_scene.cpp" "test_presets.cpp"
+idf_component_register(SRCS "main.cpp" "nvs_mock.cpp" "test_scene.cpp" "test_presets.cpp" "test_outputs.cpp"
     "${BENCH_ROOT}/main/scene_codec.cpp" "${BENCH_ROOT}/main/scene_store.cpp"
     "${BENCH_ROOT}/main/preset_codec.cpp" "${BENCH_ROOT}/main/preset_store.cpp" "${BENCH_ROOT}/main/presets_at.cpp"
+    "${BENCH_ROOT}/main/output_store.cpp" "${BENCH_ROOT}/main/outputs_at.cpp"
     "${COMPOSER_ROOT}/test/test_composer.cpp" "${COMPOSER_ROOT}/test/test_composer_at.cpp"
     INCLUDE_DIRS "." "${BENCH_ROOT}/main" "${COMPOSER_ROOT}/test"
     REQUIRES esp_pixels_composer esp_pixels_fx esp32libfun_at esp32libfun_serial nvs_flash)

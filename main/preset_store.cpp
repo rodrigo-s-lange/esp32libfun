@@ -39,9 +39,10 @@ int PresetStore::findFreeSlot() const
     return -1;
 }
 
-esp_err_t PresetStore::begin()
+esp_err_t PresetStore::begin(const Topology &topology)
 {
     if (handle_ != 0) { return ESP_ERR_INVALID_STATE; }
+    topology_ = topology;
     // Deliberately no erase/retry on NO_FREE_PAGES or NEW_VERSION_FOUND,
     // same policy SceneStore::load() already has -- a genuinely blank
     // partition (the expected first-flash state) is formatted by
@@ -66,7 +67,7 @@ esp_err_t PresetStore::begin()
             size_t name_len = 0;
             esp_pixels_composer::AtScene decoded;
             uint64_t sequence = 0;
-            err = decodePreset(scratch_, name, name_len, decoded, sequence);
+            err = decodeStoredPreset(scratch_, name, name_len, decoded, sequence);
             if (err != ESP_OK) {
                 ESP_LOGW(kTag, "slot %u key %c rejected: %s", slot, ab == 0 ? 'a' : 'b', esp_err_to_name(err));
                 continue;
@@ -109,7 +110,7 @@ esp_err_t PresetStore::save(const char *name, size_t name_len, const esp_pixels_
     }
     Slot &s = slots_[static_cast<unsigned>(slot)];
     const uint64_t next_sequence = s.occupied ? s.sequence + 1 : 1;
-    const esp_err_t encode_err = encodePreset(name, name_len, scene, next_sequence, scratch_);
+    const esp_err_t encode_err = encodePreset(name, name_len, scene, topology_, next_sequence, scratch_);
     if (encode_err != ESP_OK) { return encode_err; }
 
     // Targets the OTHER A/B key (or 'a' for a never-occupied slot, same
@@ -154,7 +155,7 @@ esp_err_t PresetStore::load(const char *name, size_t name_len, esp_pixels_compos
     char decoded_name[kPresetNameMaxLen + 1];
     size_t decoded_name_len = 0;
     uint64_t sequence = 0;
-    return decodePreset(scratch_, decoded_name, decoded_name_len, scene, sequence);
+    return decodePreset(scratch_, topology_, decoded_name, decoded_name_len, scene, sequence);
 }
 
 esp_err_t PresetStore::remove(const char *name, size_t name_len)
