@@ -57,5 +57,6 @@ operator visual confirmation. Announce and obtain confirmation before visual
 changes; arrange extra output wiring with Rodrigo before touching hardware.
 Do not infer push/tag/flash authorization from an earlier delivery.
 
-Next task: [multiple physical outputs](pixels-outputs-task.md).
-Previous brief: [named presets](pixels-presets-task.md).
+Next task: [2D canvas / ledmap through AT and persistence](pixels-2d-task.md).
+Previous briefs: [multiple physical outputs](pixels-outputs-task.md) and
+[named presets](pixels-presets-task.md).
