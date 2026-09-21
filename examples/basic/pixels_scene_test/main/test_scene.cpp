@@ -3,10 +3,14 @@
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
+#include <memory>
+#include <new>
 
 namespace {
 namespace comp = esp_pixels_composer;
 namespace mock = bench_mock;
+using bench::MapConfig;
+using bench::MapWiring;
 using bench::OutputSpec;
 using bench::SceneRecord;
 using bench::Topology;
@@ -29,7 +33,8 @@ void codecTests()
 {
     static comp::AtScene scene, decoded;
     static SceneRecord record, reencoded;
-    const Topology topology = bench::defaultTopology(); // one output: schema-2 header is 31 bytes
+    const Topology topology = bench::defaultTopology(); // one output
+    const MapConfig identity{}; // schema 3, one output, identity map: 38-byte header
     scene.count = comp::MAX_SEGMENTS;
     scene.brightness = 71;
     scene.paused = true;
@@ -45,55 +50,69 @@ void codecTests()
         s.params.custom[0] = i; s.params.custom[1] = 65 + i; s.params.custom[2] = 250 - i;
     }
     constexpr uint64_t generation = 0x123456789abcdef0ULL;
-    constexpr size_t kHeaderBytes = 31; // schema 2, one output: 4+2+2+8+1+5+1+1+1+2+4
-    CHECK(bench::encodeScene(scene, topology, generation, record) == ESP_OK);
-    CHECK(record.size == kHeaderBytes + comp::MAX_SEGMENTS * bench::kSceneSegmentBytes + 4);
+    // Schema 3, one output, identity map: magic(4)+schema(2)+size(2)+
+    // generation(8)+output_count(1)+1*(pin2+count2+order1=5)+map(width2+
+    // height2+first2+wiring1=7)+scene.count(1)+brightness(1)+paused(1)+
+    // reserved(2)+fx_catalog(4) = 38.
+    constexpr size_t kHeaderBytes = 38;
+    CHECK(bench::encodeScene(scene, topology, identity, generation, record) == ESP_OK);
+    CHECK(record.size == kHeaderBytes + comp::MAX_SEGMENTS * bench::kSceneSegmentBytesV3 + 4);
     CHECK(record.bytes[0] == 'S' && record.bytes[1] == 'C' && record.bytes[2] == 'N' && record.bytes[3] == '1');
     CHECK(record.bytes[8] == 0xf0 && record.bytes[15] == 0x12);
     // Segment 0's own id(4)/start(2)/stop(2) LSBs, right after the header.
     CHECK(record.bytes[kHeaderBytes] == 100 && record.bytes[kHeaderBytes + 4] == 0 &&
           record.bytes[kHeaderBytes + 6] == 1);
     uint64_t found = 0;
-    CHECK(bench::decodeScene(record, topology, decoded, found) == ESP_OK && found == generation);
-    CHECK(bench::encodeScene(decoded, topology, found, reencoded) == ESP_OK);
+    CHECK(bench::decodeScene(record, topology, identity, decoded, found) == ESP_OK && found == generation);
+    CHECK(bench::encodeScene(decoded, topology, identity, found, reencoded) == ESP_OK);
     CHECK(record.size == reencoded.size && std::memcmp(record.bytes, reencoded.bytes, record.size) == 0);
     // A single damaged byte anywhere, including headers/CRC, is rejected transactionally.
     for (size_t i = 0; i < record.size; ++i) {
         record.bytes[i] ^= 0x80;
         decoded.count = 7; found = 123;
-        CHECK(bench::decodeScene(record, topology, decoded, found) != ESP_OK && decoded.count == 7 && found == 123);
+        CHECK(bench::decodeScene(record, topology, identity, decoded, found) != ESP_OK && decoded.count == 7 &&
+              found == 123);
         record.bytes[i] ^= 0x80;
     }
     const size_t full_size = record.size;
     for (size_t size : {size_t(0), size_t(20), size_t(kHeaderBytes), full_size - 1, full_size + 1}) {
         record.size = size;
-        CHECK(bench::decodeScene(record, topology, decoded, found) != ESP_OK);
+        CHECK(bench::decodeScene(record, topology, identity, decoded, found) != ESP_OK);
     }
     record.size = full_size;
-    // Semantically invalid but CRC-valid records, including a bad second entry.
-    const size_t offsets[] = {4, 16, 17, 18, 20, 21, 22, 24, 26,
+    // Semantically invalid but CRC-valid records: header fields (schema,
+    // output_count, pin, count, map wiring, scene.count, paused, reserved)
+    // and segment fields (effect_id, blend, state, palette, color_source,
+    // is2D).
+    const size_t offsets[] = {4, 16, 17, 18, 20, 21, 28, 29, 31, 33,
                               kHeaderBytes + 8, kHeaderBytes + 10, kHeaderBytes + 12, kHeaderBytes + 13,
-                              kHeaderBytes + 29, kHeaderBytes + 30};
+                              kHeaderBytes + 29, kHeaderBytes + 30, kHeaderBytes + 34};
     for (size_t offset : offsets) {
         reencoded = record; reencoded.bytes[offset] = 255; renewCrc(reencoded);
         decoded.count = 7; found = 123;
-        CHECK(bench::decodeScene(reencoded, topology, decoded, found) != ESP_OK && decoded.count == 7 && found == 123);
+        CHECK(bench::decodeScene(reencoded, topology, identity, decoded, found) != ESP_OK && decoded.count == 7 &&
+              found == 123);
     }
     reencoded = record;
-    std::memcpy(reencoded.bytes + kHeaderBytes + bench::kSceneSegmentBytes, reencoded.bytes + kHeaderBytes, 4);
+    std::memcpy(reencoded.bytes + kHeaderBytes + bench::kSceneSegmentBytesV3, reencoded.bytes + kHeaderBytes, 4);
     renewCrc(reencoded);
-    CHECK(bench::decodeScene(reencoded, topology, decoded, found) != ESP_OK); // Duplicate IDs.
+    CHECK(bench::decodeScene(reencoded, topology, identity, decoded, found) != ESP_OK); // Duplicate IDs.
     scene.segments[1].id = scene.segments[0].id;
-    CHECK(bench::encodeScene(scene, topology, 1, reencoded) != ESP_OK);
-    scene.count = 1; scene.segments[0].is2D = true;
-    CHECK(bench::encodeScene(scene, topology, 1, reencoded) != ESP_OK);
+    CHECK(bench::encodeScene(scene, topology, identity, 1, reencoded) != ESP_OK);
+    scene.count = 1; scene.segments[0].is2D = true; scene.segments[0].w = 1; scene.segments[0].h = 1;
+    scene.segments[0].reversed = true; // 2D segments must never carry reversed==true
+    CHECK(bench::encodeScene(scene, topology, identity, 1, reencoded) != ESP_OK);
+    scene.segments[0].reversed = false;
     scene.segments[0].is2D = false; scene.segments[0].stop = topology.totalPixels() + 1;
-    CHECK(bench::encodeScene(scene, topology, 1, reencoded) != ESP_OK);
+    CHECK(bench::encodeScene(scene, topology, identity, 1, reencoded) != ESP_OK);
     scene.count = 0;
-    CHECK(bench::encodeScene(scene, topology, 1, reencoded) == ESP_OK && reencoded.size == kHeaderBytes + 4);
-    CHECK(bench::decodeScene(reencoded, topology, decoded, found) == ESP_OK && decoded.count == 0 && decoded.paused);
-    CHECK(bench::encodeScene(scene, topology, 0, reencoded) != ESP_OK);
-    CHECK(bench::encodeScene(scene, Topology{}, 1, reencoded) != ESP_OK); // count==0: invalid topology
+    CHECK(bench::encodeScene(scene, topology, identity, 1, reencoded) == ESP_OK && reencoded.size == kHeaderBytes + 4);
+    CHECK(bench::decodeScene(reencoded, topology, identity, decoded, found) == ESP_OK && decoded.count == 0 &&
+          decoded.paused);
+    CHECK(bench::encodeScene(scene, topology, identity, 0, reencoded) != ESP_OK);
+    CHECK(bench::encodeScene(scene, Topology{}, identity, 1, reencoded) != ESP_OK); // count==0: invalid topology
+    CHECK(bench::encodeScene(scene, topology, MapConfig{1, 0, 0, MapWiring::Progressive}, 1, reencoded) !=
+          ESP_OK); // height==0, not identity: invalid map
 
     // Global logical indices across two outputs (Design v2 -- "no second
     // numbering convention in SEGSET"): counts 50 and 20 make output 0 the
@@ -115,9 +134,9 @@ void codecTests()
     scene.segments[1].id = 2; scene.segments[1].start = 50; scene.segments[1].stop = 70;
     scene.segments[2] = comp::SegmentSpec{}; // CROSSES the output 0/output 1 boundary at index 50
     scene.segments[2].id = 3; scene.segments[2].start = 45; scene.segments[2].stop = 55;
-    CHECK(bench::encodeScene(scene, two, 1, reencoded) == ESP_OK);
+    CHECK(bench::encodeScene(scene, two, identity, 1, reencoded) == ESP_OK);
     decoded = comp::AtScene{};
-    CHECK(bench::decodeScene(reencoded, two, decoded, found) == ESP_OK && decoded.count == 3);
+    CHECK(bench::decodeScene(reencoded, two, identity, decoded, found) == ESP_OK && decoded.count == 3);
     CHECK(decoded.segments[0].start == 0 && decoded.segments[0].stop == 50);
     CHECK(decoded.segments[1].start == 50 && decoded.segments[1].stop == 70);
     CHECK(decoded.segments[2].start == 45 && decoded.segments[2].stop == 55); // the crossing segment, intact
@@ -128,7 +147,33 @@ void codecTests()
     scene.count = 1;
     scene.segments[0] = comp::SegmentSpec{};
     scene.segments[0].id = 1; scene.segments[0].stop = 71;
-    CHECK(bench::encodeScene(scene, two, 1, reencoded) != ESP_OK);
+    CHECK(bench::encodeScene(scene, two, identity, 1, reencoded) != ESP_OK);
+
+    // A real (non-identity) 5x14 matrix over the same 70-pixel two-output
+    // topology: one 2D segment filling the whole canvas, one 1D segment
+    // addressing the flat row-major canvas space directly (not the
+    // physical/logical space) -- both validated against the CANVAS
+    // (width*height), not totalPixels() directly (identical here, 70==70,
+    // but the two are conceptually distinct spaces per Design v2 SS7).
+    const MapConfig matrix{5, 14, 0, MapWiring::Serpentine};
+    CHECK(matrix.valid(two.totalPixels()));
+    scene = comp::AtScene{};
+    scene.count = 2;
+    scene.segments[0].is2D = true;
+    scene.segments[0].id = 1; scene.segments[0].x = 0; scene.segments[0].y = 0;
+    scene.segments[0].w = 5; scene.segments[0].h = 14;
+    scene.segments[1].id = 2; scene.segments[1].start = 0; scene.segments[1].stop = 70; // flat canvas range
+    CHECK(bench::encodeScene(scene, two, matrix, 1, reencoded) == ESP_OK);
+    decoded = comp::AtScene{};
+    CHECK(bench::decodeScene(reencoded, two, matrix, decoded, found) == ESP_OK && decoded.count == 2);
+    CHECK(decoded.segments[0].is2D && decoded.segments[0].w == 5 && decoded.segments[0].h == 14);
+    CHECK(!decoded.segments[1].is2D && decoded.segments[1].stop == 70);
+    // The SAME bytes rejected under the identity canvas (record embeds its
+    // own real map, isCompatibleMap() requires an EXACT match).
+    CHECK(bench::decodeScene(reencoded, two, identity, decoded, found) == ESP_ERR_NOT_SUPPORTED);
+    // A 2D segment one column past the matrix width is rejected.
+    scene.segments[0].w = 6;
+    CHECK(bench::encodeScene(scene, two, matrix, 1, reencoded) != ESP_OK);
 }
 
 void journalTests()
@@ -136,37 +181,39 @@ void journalTests()
     static comp::AtScene scene, restored;
     static bench::SceneStore store, reboot, torn_reboot, failed_init;
     const Topology topology = bench::defaultTopology();
-    CHECK(store.load(topology, scene) == ESP_ERR_NOT_FOUND);
+    const MapConfig identity{};
+    CHECK(store.load(topology, identity, scene) == ESP_ERR_NOT_FOUND);
     CHECK(mock::g_scene_writes == 0 && mock::g_scene_commits == 0);
     scene.count = 1; scene.segments[0].id = 1; scene.segments[0].stop = 25;
     scene.segments[0].params.color[0] = {15, 25, 35};
-    CHECK(store.save(topology, scene) == ESP_OK);
+    CHECK(store.save(topology, identity, scene) == ESP_OK);
     CHECK(mock::g_scene_writes == 1 && mock::g_scene_commits == 1 &&
           mock::g_scene_slots[0].size != 0 && mock::g_scene_slots[1].size == 0);
-    CHECK(store.save(topology, scene) == ESP_OK && mock::g_scene_writes == 1); // Unchanged config: no wear.
+    CHECK(store.save(topology, identity, scene) == ESP_OK && mock::g_scene_writes == 1); // Unchanged config: no wear.
     scene.paused = true;
-    CHECK(store.save(topology, scene) == ESP_OK && mock::g_scene_writes == 2 && mock::g_scene_slots[1].size != 0);
-    CHECK(reboot.load(topology, restored) == ESP_OK && restored.paused && restored.count == 1);
+    CHECK(store.save(topology, identity, scene) == ESP_OK && mock::g_scene_writes == 2 &&
+          mock::g_scene_slots[1].size != 0);
+    CHECK(reboot.load(topology, identity, restored) == ESP_OK && restored.paused && restored.count == 1);
     CHECK(restored.segments[0].params.color[0].g == 25);
     mock::g_scene_slots[1].bytes[40] ^= 1; // Latest slot damaged: previous complete slot survives.
-    CHECK(torn_reboot.load(topology, restored) == ESP_OK && !restored.paused && restored.count == 1);
+    CHECK(torn_reboot.load(topology, identity, restored) == ESP_OK && !restored.paused && restored.count == 1);
     const mock::SceneMockSlot previous = mock::g_scene_slots[0];
     mock::g_scene_fail_write = true;
-    CHECK(torn_reboot.save(topology, scene) == ESP_FAIL);
+    CHECK(torn_reboot.save(topology, identity, scene) == ESP_FAIL);
     CHECK(mock::g_scene_slots[0].size == previous.size &&
           std::memcmp(mock::g_scene_slots[0].bytes, previous.bytes, previous.size) == 0);
     mock::g_scene_fail_write = false; mock::g_scene_fail_commit = true;
-    CHECK(torn_reboot.save(topology, scene) == ESP_FAIL);
+    CHECK(torn_reboot.save(topology, identity, scene) == ESP_FAIL);
     CHECK(std::memcmp(mock::g_scene_slots[0].bytes, previous.bytes, previous.size) == 0);
     mock::g_scene_fail_commit = false; mock::g_scene_fail_readback = true;
-    CHECK(torn_reboot.save(topology, scene) == ESP_FAIL);
+    CHECK(torn_reboot.save(topology, identity, scene) == ESP_FAIL);
     mock::g_scene_fail_readback = false;
-    CHECK(torn_reboot.save(topology, scene) == ESP_OK); // Failure never poisons cache/retry.
+    CHECK(torn_reboot.save(topology, identity, scene) == ESP_OK); // Failure never poisons cache/retry.
     scene.count = 0;
-    CHECK(torn_reboot.save(topology, scene) == ESP_OK); // Empty configuration is durable too.
+    CHECK(torn_reboot.save(topology, identity, scene) == ESP_OK); // Empty configuration is durable too.
     mock::g_scene_init_error = ESP_FAIL;
-    CHECK(failed_init.load(topology, restored) == ESP_FAIL);
-    CHECK(failed_init.save(topology, scene) == ESP_FAIL); // Never erase/reinitialize on failure.
+    CHECK(failed_init.load(topology, identity, restored) == ESP_FAIL);
+    CHECK(failed_init.save(topology, identity, scene) == ESP_FAIL); // Never erase/reinitialize on failure.
     mock::g_scene_init_error = ESP_OK;
 
     // A real, non-empty single-output record, saved fresh for the
@@ -184,7 +231,7 @@ void journalTests()
     scene.segments[0].id = 7;
     scene.segments[0].stop = 25;
     scene.segments[0].params.color[0] = {9, 8, 7};
-    CHECK(torn_reboot.save(topology, scene) == ESP_OK);
+    CHECK(torn_reboot.save(topology, identity, scene) == ESP_OK);
 
     // A second output appended: the original segment (bounded by the
     // original 50-pixel total) keeps its exact meaning -- isCompatiblePrefix()
@@ -196,7 +243,7 @@ void journalTests()
     appended.outputs[1] = bench::OutputSpec{4, 20, 0};
     static bench::SceneStore appended_reboot;
     static comp::AtScene appended_scene;
-    CHECK(appended_reboot.load(appended, appended_scene) == ESP_OK);
+    CHECK(appended_reboot.load(appended, identity, appended_scene) == ESP_OK);
     CHECK(appended_scene.count == 1 && appended_scene.segments[0].id == 7 &&
           appended_scene.segments[0].stop == 25 && appended_scene.segments[0].params.color[0].r == 9);
 
@@ -218,36 +265,86 @@ void journalTests()
         std::memcpy(probe.bytes, mock::g_scene_slots[slot].bytes, probe.size);
         uint64_t seq = 0;
         restored = comp::AtScene{};
-        if (bench::decodeScene(probe, topology, restored, seq) == ESP_OK && restored.count == 1 &&
+        if (bench::decodeScene(probe, topology, identity, restored, seq) == ESP_OK && restored.count == 1 &&
             restored.segments[0].id == 7) {
             changed_checked = true;
             restored = comp::AtScene{};
-            CHECK(bench::decodeScene(probe, changed, restored, seq) != ESP_OK && restored.count == 0);
+            CHECK(bench::decodeScene(probe, changed, identity, restored, seq) != ESP_OK && restored.count == 0);
         }
     }
     CHECK(changed_checked);
+
+    // A zero-offset progressive matrix preserves this all-1D record's flat
+    // domain. Serpentine changes that mapping and must reject the same bytes.
+    const MapConfig later_matrix{5, 10, 0, MapWiring::Progressive};
+    restored = comp::AtScene{};
+    uint64_t map_seq = 0;
+    CHECK(bench::decodeScene(probe, topology, later_matrix, restored, map_seq) == ESP_OK && restored.count == 1);
+    const MapConfig remapped{5, 10, 0, MapWiring::Serpentine};
+    CHECK(bench::decodeScene(probe, topology, remapped, restored, map_seq) == ESP_ERR_NOT_SUPPORTED);
 }
+
+void legacySchemaTests()
+{
+    std::unique_ptr<comp::AtScene> decoded(new (std::nothrow) comp::AtScene{});
+    if (!decoded) { CHECK(false); return; }
+    SceneRecord record{};
+    const Topology topology = bench::defaultTopology();
+    for (unsigned schema : {1U, 2U}) {
+        record = SceneRecord{};
+        const size_t header = schema == 1 ? 32 : 31;
+        record.size = header + 34 + 4;
+        uint8_t *b = record.bytes;
+        b[0] = 'S'; b[1] = 'C'; b[2] = 'N'; b[3] = '1';
+        b[4] = schema; b[6] = record.size; b[8] = 7;
+        if (schema == 1) { b[16] = 16; b[18] = 50; b[20] = 1; b[30] = 2; }
+        else { b[16] = 1; b[17] = 16; b[19] = 50; b[29] = 2; }
+        b[22] = 1; b[23] = 96;
+        uint8_t *s = b + header;
+        s[0] = 7; s[4] = 3; s[6] = 4; s[9] = 255; s[11] = 255;
+        s[18] = 255; s[27] = 128; s[28] = 128;
+        s[30] = esp_pixels_fx::FX_COLOR_SOURCE_COLORS;
+        s[31] = 11; s[32] = 22; s[33] = 33;
+        renewCrc(record);
+        uint64_t generation = 0;
+        CHECK(bench::decodeScene(record, topology, MapConfig{}, *decoded, generation) == ESP_OK);
+        CHECK(generation == 7 && decoded->count == 1 && decoded->brightness == 96);
+        CHECK(!decoded->segments[0].is2D && decoded->segments[0].id == 7 &&
+              decoded->segments[0].start == 3 && decoded->segments[0].stop == 4);
+        CHECK(decoded->segments[0].params.color[0].r == 255 &&
+              decoded->segments[0].params.custom[2] == 33);
+        CHECK(bench::decodeScene(record, topology, MapConfig{5,10,0,MapWiring::Progressive},
+                                *decoded, generation) == ESP_OK);
+        decoded->count = 9; generation = 99;
+        CHECK(bench::decodeScene(record, topology, MapConfig{5,10,0,MapWiring::Serpentine},
+                                *decoded, generation) == ESP_ERR_NOT_SUPPORTED);
+        CHECK(decoded->count == 9 && generation == 99);
+    }
+}
+
 void recordBoundaryTests()
 {
     static comp::AtScene original, decoded;
     static SceneRecord record, bad;
+    const MapConfig identity{};
     original = comp::AtScene{};
     original.count = 1; original.segments[0].id = 1; original.segments[0].stop = 50;
-    CHECK(bench::encodeScene(original, bench::defaultTopology(), 1, record) == ESP_OK);
+    CHECK(bench::encodeScene(original, bench::defaultTopology(), identity, 1, record) == ESP_OK);
     Topology appended = bench::defaultTopology();
     appended.count = 2; appended.outputs[1] = OutputSpec{17, 20, 0};
+    constexpr size_t kHeaderBytes = 38; // one output, identity map -- see codecTests()'s own comment
     bad = record;
-    bad.bytes[31 + 6] = 51; // invalid on the stored topology even though the device now has 70 pixels
+    bad.bytes[kHeaderBytes + 6] = 51; // invalid on the stored topology even though the device now has 70 pixels
     renewCrc(bad);
     uint64_t generation = 999;
     decoded.count = 7;
-    CHECK(bench::decodeScene(bad, appended, decoded, generation) == ESP_ERR_INVALID_ARG);
+    CHECK(bench::decodeScene(bad, appended, identity, decoded, generation) == ESP_ERR_INVALID_ARG);
     CHECK(decoded.count == 7 && generation == 999);
-    for (size_t size = 8; size < 35; ++size) {
+    for (size_t size = 8; size < kHeaderBytes + 4; ++size) {
         bad = record; bad.size = size;
         bad.bytes[6] = static_cast<uint8_t>(size); bad.bytes[7] = 0;
         renewCrc(bad);
-        CHECK(bench::decodeScene(bad, appended, decoded, generation) != ESP_OK);
+        CHECK(bench::decodeScene(bad, appended, identity, decoded, generation) != ESP_OK);
         CHECK(decoded.count == 7 && generation == 999);
     }
 }
@@ -256,7 +353,7 @@ void recordBoundaryTests()
 int run_scene_tests()
 {
     checks = 0; failures = 0;
-    codecTests(); journalTests(); recordBoundaryTests();
+    codecTests(); journalTests(); recordBoundaryTests(); legacySchemaTests();
     std::printf("SCENE checks=%d failures=%d\n", checks, failures);
     return failures;
 }

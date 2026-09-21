@@ -50,11 +50,22 @@ public:
     ///         failure -- the prior record (if any) is unchanged either way.
     esp_err_t save(const Topology &topology);
 
+    /// The most recently loaded or successfully saved topology this
+    /// session -- `defaultTopology()` until the first successful `load()`/
+    /// `save()`. Lets another AT library (`mapAt()`'s own `AT+MAPSAVE`
+    /// guard) validate a candidate against whatever output topology is
+    /// ACTUALLY durably saved for the next boot, without needing its own
+    /// duplicate tracking or a second `load()` call (which this store
+    /// could not even serve twice -- see `load()`'s own doc).
+    /// @return The current best-known topology (never touches storage).
+    const Topology &current() const { return current_; }
+
 private:
     nvs_handle_t handle_ = 0;
     esp_err_t init_error_ = ESP_ERR_INVALID_STATE;
     int active_slot_ = -1;
     uint64_t sequence_ = 0;
+    Topology current_ = defaultTopology();
     Record cached_;
     Record scratch_;
     Record verify_;

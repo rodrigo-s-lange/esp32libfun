@@ -9,8 +9,9 @@
 // in nvs_mock.cpp, since `-Wl,--wrap` substitutes it link-wide for the
 // WHOLE binary -- test_scene.cpp (SceneStore, namespace "pixels_scene",
 // keys scene_a/scene_b), test_presets.cpp (PresetStore, named "presets"
-// partition, keys p00a..p99b), and test_outputs.cpp (OutputStore, namespace
-// "pixels_outputs", keys outputs_a/outputs_b) all drive fault injection
+// partition, keys p00a..p99b), test_outputs.cpp (OutputStore, namespace
+// "pixels_outputs", keys outputs_a/outputs_b), and test_map.cpp (MapStore,
+// namespace "pixels_map", keys map_a/map_b) all drive fault injection
 // through this one shared mock instead of each defining its own wraps. No
 // real NVS/partition access anywhere in this binary, regardless of which
 // store is under test.
@@ -72,10 +73,11 @@ extern bool g_preset_fail_readback;
 // nvs_commit(), which carries no key of its own, can still tell the two
 // apart; get_blob()/set_blob()/erase_key() dispatch by key shape
 // ("outputs_a"/"outputs_b"), same as the other two mocks. There is
-// deliberately no separate `g_output_init_error`: __wrap_nvs_flash_init()
-// itself carries no namespace/key either, so a `nvs_flash_init()` failure
-// is injected jointly for SceneStore and OutputStore via `g_scene_init_error`
-// -- the same limitation this shared entry point already has for those two.
+// deliberately no separate `g_output_init_error`/`g_map_init_error`:
+// __wrap_nvs_flash_init() itself carries no namespace/key either, so a
+// `nvs_flash_init()` failure is injected jointly for SceneStore,
+// OutputStore AND MapStore via `g_scene_init_error` -- the same limitation
+// this shared entry point already has for all three.
 
 constexpr size_t kOutputMockBytes = 64; // >= output_store.hpp's kRecordBytes (31 at kMaxOutputs==2)
 
@@ -91,7 +93,27 @@ extern bool g_output_fail_write;
 extern bool g_output_fail_commit;
 extern bool g_output_fail_readback;
 
-/// Resets every counter/flag/slot above (all three mocks) to its initial state.
+// --- canvas/ledmap mock (MapStore) --------------------------------------
+//
+// A fourth namespace ("pixels_map"), handle=4 from the same namespace-aware
+// __wrap_nvs_open() the scene/output mocks already use -- see its own doc.
+// Keys "map_a"/"map_b", dispatched by key shape like the other two.
+
+constexpr size_t kMapMockBytes = 32; // >= map_store.hpp's own kRecordBytes (27)
+
+struct MapMockSlot {
+    uint8_t bytes[kMapMockBytes]{};
+    size_t size = 0;
+};
+
+extern MapMockSlot g_map_slots[2]; // map_a, map_b
+extern unsigned g_map_writes;
+extern unsigned g_map_commits;
+extern bool g_map_fail_write;
+extern bool g_map_fail_commit;
+extern bool g_map_fail_readback;
+
+/// Resets every counter/flag/slot above (all four mocks) to its initial state.
 /// Called once, before any `run_*_tests()`, from this image's own
 /// `app_main()` -- never mid-suite, so no runner needs to guess what an
 /// earlier one left behind.

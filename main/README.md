@@ -23,7 +23,7 @@ setters take effect only after `AT+SEGPUB`. `PIXELS_PRESETS` (unreleased)
 is a second, application-owned AT library for named
 presets -- see its own section below.
 
-## Automatic configuration retention (scene schema 1 read, schema 2 written)
+## Automatic configuration retention (schemas 1/2 read, schema 3 written)
 
 - A confirmed `AT+SEGPUB` saves the entire ordered scene. `AT+COMPAUSE=0|1`
   saves global pause with the last confirmed segments, never intervening staged
@@ -32,11 +32,11 @@ presets -- see its own section below.
   opacity, speed, intensity, palette, color source, all three RGB colors, all
   three custom parameters, restart tokens, global brightness and global pause.
 - Output topology (pins/counts/wire order, 1..`kMaxOutputs` slots) is embedded
-  in every record's own header as of schema 2 (this delivery) -- see
+  in every record's own header as of schema 2 -- see
   "Multiple physical pixel outputs" below for how a record's own topology is
   checked for compatibility against the device's current one before it is
-  ever applied. Ledmaps and 2D scene persistence remain **not** provided by
-  this application schema.
+  ever applied. Schema 3 adds the canvas descriptor and 1D/2D segment shape;
+  see the 2D section below for layout compatibility.
 - Not retained: animation time, effect runtime, pixel/history buffers or task
   handles. Effects restart on boot. Paused segments/global pause restore as
   paused with initially black buffers until resumed; this is configuration
@@ -44,9 +44,9 @@ presets -- see its own section below.
 - Records use explicit little-endian fields, schema/catalog versions, a 64-bit
   generation and CRC32, not raw C++ struct bytes. Schema 1 (single output
   only, fixed 32-byte header) is still read on boot/recall, never written
-  again. Every new save writes schema 2 (variable-size header, 31 bytes at
-  one output, up to 36 at `kMaxOutputs`==2) -- see "Multiple physical pixel
-  outputs" for the full recalculated maximum record size.
+  again. Schema 2 remains readable too. Every new save writes schema 3
+  (variable-size header, 38 bytes at one output, up to 43 at two outputs).
+  See the 2D section for the full recalculated maximum record size.
 - Namespace `pixels_scene`, keys `scene_a`/`scene_b` in the existing NVS
   partition. Save targets the inactive key, commits and reads back; it does not
   overwrite the last valid key. Boot selects the newest valid COMPATIBLE
@@ -89,8 +89,8 @@ Composer/FX checkpoints are not accidentally compiled alongside the new line.
 
 | Component | Checkout | Validated revision |
 |---|---|---|
-| Composer and its adapter | `../esp_pixels_composer` | `07eb426a9c72f4b53062ba62d3a9a63370534755` on `feature/at-scene-persistence`: two physical outputs plus persistence, AT composition controls and confirmed-scene export/load; unreleased over published `v0.2.0` |
-| FX | `../esp_pixels_fx` | local integration `e7e0ba391473005137f6fd4dcf70b4355975b6ac`; not yet published |
+| Composer and its adapter | `../esp_pixels_composer` | `5dc3a8ebec0e85136d28c07914e6030d25b2c370` on `feature/at-scene-persistence`: two physical outputs, persistence, AT composition controls, confirmed-scene export/load and `AT+SEGSET2D` (v0.2.1); local, unreleased checkpoint |
+| FX | `../esp_pixels_fx` | `4e977137950a30c81f4151b411b1541fba85adb4` on `integration/v0.2.0`, including validated `XYGradient` (v0.2.1); local, unreleased checkpoint |
 | Pixels transport | `framework/libs/esp_pixels` | `5d7db6b7ce17935ec5213e241c66055787726564`, with existing local README/AT changes preserved |
 | Core | this repository's `framework/core` | current application checkout |
 
@@ -608,6 +608,223 @@ This delivery is checkpointed locally, without push or tag.
 7. Capture serial logs for each step, the same way every earlier bench run
    in this README has.
 
+## 2D canvas / ledmap (PIXELS_MAP) — validated local checkpoint, unreleased
+
+Claude implemented this brief (`docs/pixels-2d-task.md`) against app baseline
+`5361eb090a9abb4640326074028d3d81c24c1cea` and Composer baseline
+`07eb426a9c72f4b53062ba62d3a9a63370534755`. The hard part -- a real ledmap
+and 2D segments -- already existed in `esp_pixels_composer` v0.2.0
+(`Composer::setLedmap()`/`addSegment2D()`); this delivery adds the
+application-level matrix configuration/persistence/compatibility around it,
+plus the one missing AT command (`AT+SEGSET2D`, Composer v0.2.1) and the
+first genuinely-2D effect (`XYGradient`, esp_pixels_fx v0.2.1). Codex completed
+integration and hardware execution; Rodrigo confirmed the virtual 5x10
+demonstration on the straight strip. See the test counts and visual bench
+sequence at the end of this section. The local checkpoint was closed on
+2026-09-21.
+
+### Matrix configuration AT library (`PIXELS_MAP`)
+
+A new, application-owned AT library (`main/map_config.hpp`, `main/
+map_store.*`, `main/map_at.*`), entirely separate from `PIXELS_COMPOSER`/
+`PIXELS_PRESETS`/`PIXELS_OUTPUTS`: discover it the same way, `AT+HELP?` then
+`AT+PIXELS_MAP?`. Generates a real ledmap table from a compact descriptor
+(width/height/first logical pixel/row wiring) at boot and installs it via
+`Composer::setLedmap()`, once, right after `build()` -- never a per-preset
+table.
+
+- `AT+MAP?` -- lists the ACTIVE canvas (what `Composer::setLedmap()`
+  actually installed), the durably SAVED-for-next-boot one, and the STAGED
+  candidate, each as `identity` or `width=<w> height=<h> first=<f>
+  wiring=<PROGRESSIVE|SERPENTINE> range=[<f>,<f+w*h>)`. Query only.
+- `AT+MAPSET=<width>,<height>,<first>,<PROGRESSIVE|SERPENTINE>` -- stages
+  one whole candidate matrix, validated (`width`/`height` > 0, `first +
+  width*height <= totalPixels()`) against whatever output topology is
+  CURRENTLY durably saved for the next boot (never an unsaved staged
+  `AT+OUTSET` candidate) -- the topology that will actually be active the
+  next time this map takes effect. An invalid candidate leaves the staged
+  one completely unchanged. Stages only.
+- `AT+MAPCLR` -- stages the identity map (no real matrix). Does **not**
+  touch the current scene or storage.
+- `AT+MAPSAVE` -- re-validates the whole staged candidate against the same
+  saved-topology bound, rejects it if incompatible with the durable
+  nonempty current scene, then persists it. **Takes effect on the next
+  explicit reboot only** -- never live-replaces the running
+  `Composer::setLedmap()` canvas (which cannot change after `build()`
+  established it anyway).
+
+Origin is top-left, X right, Y down, row-major. PROGRESSIVE runs every row
+the same direction; SERPENTINE alternates per row (row 0 forward, row 1
+backward, ...). `first` is the GLOBAL logical index of canvas cell `(0,0)`
+-- not a per-output index, and a matrix may cross an output boundary the
+same way a 1D segment already can. This increment is deliberately a single,
+uniform rectangle for the whole canvas: no arbitrary map-entry editor, no
+holes, no panel tiling/rotation, no separate canvas per output -- limits of
+this first AT increment, not of `Composer::setLedmap()` itself.
+
+### `AT+SEGSET2D` and the new `XYGradient` effect
+
+`AT+SEGSET2D=<id>,<x>,<y>,<width>,<height>,<effect_id>` (Composer v0.2.1,
+see its own README) stages a 2D segment the same way `AT+SEGSET` already
+stages a 1D one, validated against the real canvas
+(`canvasWidth()`/`canvasHeight()`). 1D and 2D segments compose in the same
+layer order, on the same canvas -- freely mixed in one scene. Under a real
+matrix, a 1D segment's `[start, stop)` addresses the flat row-major CANVAS
+space (`y*width + x`), never the physical/logical space directly; only the
+installed ledmap resolves canvas indices to physical pixels.
+
+`esp_pixels_fx` v0.2.1 adds `XYGradient` (effect id 4), the first
+registered effect whose own output genuinely depends on both coordinates
+(`FX_DIM_2D` only) -- a scrolling palette gradient whose `intensity`
+control tilts the X/Y weighting asymmetrically (`0` = pure horizontal,
+`255` = pure vertical, anything between mixes both axes at deliberately
+different rates). See its own `README.md` for the full contract.
+
+### Persistence/compatibility
+
+Scene/preset records evolve to schema 3 (`main/scene_codec.*`): a shape
+discriminator plus each segment's own active geometry (2D `x`/`y` reuse the
+1D `start`/`stop` bytes; `w`/`h` and the discriminator are the only new
+per-segment fields -- never a redundant second geometry pair), and one
+compact map descriptor per record (7 bytes: width/height/first/wiring) --
+never a full generated ledmap table. Schema 1 and 2 (this application's own
+earlier, map-less formats) are still read unchanged, always implying the
+identity canvas.
+
+Compatibility checks output topology and map together. Identity records with
+only 1D segments may use IDENTITY or a zero-offset PROGRESSIVE matrix covering
+their whole original flat domain, preserving every physical index. A smaller,
+offset or serpentine matrix rejects those records before mutation. Records
+with 2D segments require unchanged canvas/map semantics; a stored real matrix
+requires the same width/height/first/wiring. Output-prefix compatibility is
+also required. Returning to IDENTITY with the original output prefix makes
+all 100 old presets usable again; incompatible presets remain listed/occupied.
+The current-scene guard (`SceneStore::canRestoreOn()`/`nextBoot()`) now
+takes topology and map TOGETHER: `AT+OUTSAVE` validates its own new
+candidate against whatever map is CURRENTLY durably saved
+(`MapStore::current()`), and `AT+MAPSAVE` validates its own new candidate
+against whatever topology is CURRENTLY durably saved
+(`OutputStore::current()`) -- covering both save orders, never the OTHER
+command's own unsaved staged candidate. Later scene saves are checked
+against the combined saved next-boot topology AND map together, exactly
+like the multiple-outputs delivery's own topology-only guard, now extended.
+No record is ever bulk-rewritten at boot as a migration, and NVS is never
+erased as part of this delivery.
+
+### Recalculated maximum record size and partition fit
+
+Schema 3's own header grows by exactly 7 bytes over schema 2 (the map
+descriptor, always present, identity or not), and each segment grows by 5
+bytes (`kSceneSegmentBytesV3` = 39, was `kSceneSegmentBytes` = 34: a 1-byte
+shape discriminator plus `w`/`h`; `x`/`y` reuse the existing `start`/`stop`
+bytes, so there is no redundant second geometry pair on disk). Recalculated
+maximums, 32 segments, `kMaxOutputs`==2:
+
+| Record | Schema 2 max | Schema 3 max (this delivery) |
+|---|---|---|
+| Scene (`kSceneRecordBytes`) | 1128 bytes | **1295 bytes** |
+| Preset (`kPresetRecordBytes`) | 1181 bytes | **1348 bytes** |
+
+The existing 320 KiB `presets` partition still fits, but with a
+**meaningfully thinner margin than the previous delivery reported** -- this
+is reported transparently rather than assumed: `ceil(1348/32) == 43` NVS
+data entries per record (was 37 at 1181 bytes -- crossing into a new
+32-byte-entry bucket, unlike the previous delivery's own 4-byte growth,
+which stayed inside the same bucket). Using the same "+4 entries for index/
+chunk-header overhead, split across two pages" accounting the partition
+CSV's own comment already establishes: 43+4 = 47 entries/record max, x100
+positions x2 (A/B) = **9400 entries**, against 10080 entries in 80 pages.
+The gross margin is 680 entries. Reserving one 126-entry GC page and one
+namespace entry leaves 553; budgeting a further 47-entry replacement record
+leaves 506. This is conservative sizing, not a substitute for the required
+real-NVS run with 1348-byte records. The partition layout remains unchanged.
+`MapStore`'s own record is tiny (27 bytes fixed) and reuses the existing 24
+KiB default `nvs` partition (namespace `pixels_map`, keys `map_a`/`map_b`,
+the same A/B journal discipline every other store here already has) -- no
+new partition needed for it either.
+
+### Test coverage added
+
+- The permanent `pixels_scene_test` runner now includes XYGradient's actual
+  tests and the Composer AT regression for SEGSET2D, mixed 1D/2D layers,
+  output-boundary routing, invalid edit/load preservation, shape replacement,
+  and height-one geometry. AT registration assertions now expect 22 commands.
+- Map tests cover exact nonsquare progressive/serpentine tables and offset,
+  invalid wiring/identity descriptors, both output/map save orders, unsaved
+  candidate isolation, current-scene protection and 2D reboot recovery.
+- Codec tests retain new-schema maximum-size checks and include independent
+  schema-1/2 fixtures, progressive identity-domain compatibility, serpentine
+  rejection and transactional malformed-record checks.
+
+Review 2026-09-15: application, expanded scene suite and independent adapter
+runner all built successfully. Application binary: 259648 bytes; scene-suite
+binary: 544144 bytes. Suite static DRAM: 172488/180736 bytes (95.44%), leaving
+8248 bytes. Added temporary test fixtures use checked heap allocations and are
+released between cases. On WROOM/COM6 the expanded suite passed 6180 checks
+and the independent adapter runner passed 172 (6352 total, zero failures).
+The application was restored with the same partition layout and RMT cache
+safety enabled. Build logs: `2d-review-build.log` in each build directory;
+serial captures and verified partition backups:
+`build-wroom-rmt-safe/bench-2d-20260915/`. Rodrigo confirmed the visual
+sequence on 2026-09-16 and reaffirmed it on 2026-09-21.
+The real-NVS capacity run also passed: 201 writes of maximum-size 1348-byte
+presets (both A/B copies across 100 positions plus replacement at capacity),
+rejection of a 101st name, reboot and 100 recalls. No partition growth was
+needed. The original preset partition is restored from the verified backup
+after this temporary capacity exercise.
+### Visual bench sequence (executed and confirmed)
+
+Rodrigo requested validation on the straight GPIO16 strip (50 pixels),
+without assembling a panel. Use a virtual 5-column x 10-row matrix at global
+offset zero: each consecutive group of five LEDs represents a row. GPIO17
+(12 pixels) stays connected but unmapped/black. This demonstrates coordinate
+and wiring behavior on real LEDs; it is not an assembled-panel observation.
+
+1. Arrange observation of the straight GPIO16 strip with Rodrigo. Verify backups
+   of the original NVS/preset partitions before changes. Flash the suites, run
+   them, then restore the application. Boot must show `outputs=2 total=62`,
+   identity `canvas=62x1`, and `persistence=scene-v3`.
+2. Explicitly clear/publish the old current scene before changing its layout:
+   `AT+SEGCLR`, `AT+SEGPUB`. Then `AT+MAPSET=5,10,0,PROGRESSIVE`,
+   `AT+MAPSAVE`, `AT+RESET`. Confirm `canvas=5x10`.
+   Clearing an empty scene holds the last physical frame; startup sends black.
+3. Use Solid 2D rectangles to show row y=4 (physical LEDs 21..25) and column
+   x=0 (LEDs 1,6,11,...,46). XYGradient (`effect=4`, speed zero) over 5x10
+   shows repeated horizontal ramps at intensity zero and row bands at 255.
+   After explicit clear/save/reboot into SERPENTINE, column x=0 must instead
+   light LEDs 1,10,11,20,21,30,31,40,41,50. All physical positions here are
+   numbered from one; AT coordinates start at zero.
+4. The store has 100 occupied positions. Use a verified, temporarily borrowed
+   position such as Pos100 for matrix save/recall; do not create a 101st name.
+   Disable/publish the active segments for an explicit blackout, recall the
+   test preset, and reboot to confirm 2D scene recovery.
+5. Confirm an old 50-pixel identity preset is usable on the progressive 5x10
+   canvas, but rejected on SERPENTINE without replacing staging/live state;
+   all 100 names remain occupied.
+   Run the 1348-byte real-NVS capacity/replacement gate separately, keeping
+   backup/restore protection and the 100-position limit.
+6. Explicitly clear/publish the matrix scene, then `AT+MAPCLR`, `AT+MAPSAVE`,
+   `AT+RESET`. Restore and verify the original preset partition, recall all
+   Pos001..Pos100 with geometry/color checks, and finish on Pos100.
+7. Keep serial captures. Builds, automated execution and physical observation
+   are recorded separately.
+
+The progressive sequence passed all 34 serial checks, including an original
+schema-1 preset recall on the 5x10 canvas, XYGradient controls, preset recovery
+after explicit blackout, and restored 2D geometry/controls after reboot.
+The serpentine sequence passed all 17 checks: old identity and progressive-map
+presets were rejected without changing the blue-column scene, all 100 names
+remained occupied, and the blue 2D column survived reboot. Captures:
+`visual-progressive.log` and `visual-serpentine.log` in the bench directory.
+After the demonstration, IDENTITY was restored and the original preset
+partition was restored again and verified byte-for-byte against its backup.
+All 100 original presets passed geometry/color recall checks (203 serial
+checks, zero failures). Final scene: Pos100, LED 34 red, second output black,
+brightness 96. Rodrigo confirmed the red row, green column, X/Y/mixed
+gradients, blackout/preset/reboot recovery and serpentine blue column with
+GPIO17 black. The 2D delivery is checkpointed locally after that confirmation;
+no push or tag was performed. This validates a virtual canvas on a straight
+strip, not an assembled matrix panel.
 ## Known gaps
 
 Review on 2026-09-14 fixed incompatible presets being cataloged as free,
@@ -631,10 +848,10 @@ effects.
 
 - Named presets are delivered locally (unreleased, automated hardware gates
   and real-NVS capacity passed; startup flash accepted as a known issue).
-  Multiple physical outputs are now implemented locally too (unreleased,
-  hardware gates passed and visually confirmed -- see the section
-  above). 2D remains pending; this bench still uses the 1D scene schema
-  described above.
+  Multiple physical outputs are delivered locally too (unreleased,
+  hardware gates passed and visually confirmed). 2D canvas/ledmap is now
+  delivered locally as well (unreleased, hardware checks passed and the
+  virtual 5x10 demonstration visually confirmed -- see the section above).
 - No symmetric (palindromic) mirror effect exists. The existing per-segment
   `reversed` flag only reverses which physical index a segment's local
   position `i` maps to; it is a local index flip, not the requested

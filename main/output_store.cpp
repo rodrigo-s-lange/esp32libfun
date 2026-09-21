@@ -116,6 +116,7 @@ esp_err_t OutputStore::load(Topology &topology)
         cached_ = scratch_;
     }
     if (active_slot_ < 0) { return last_error; }
+    current_ = topology;
     ESP_LOGI(kTag, "restored slot=%d generation=%llu outputs=%u", active_slot_,
              static_cast<unsigned long long>(sequence_), static_cast<unsigned>(topology.count));
     return ESP_OK;
@@ -145,6 +146,7 @@ esp_err_t OutputStore::save(const Topology &topology)
     cached_ = scratch_;
     active_slot_ = target;
     ++sequence_;
+    current_ = topology;
     ESP_LOGI(kTag, "saved slot=%d generation=%llu bytes=%u outputs=%u", active_slot_,
              static_cast<unsigned long long>(sequence_), static_cast<unsigned>(cached_.size),
              static_cast<unsigned>(topology.count));

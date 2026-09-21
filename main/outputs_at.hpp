@@ -1,5 +1,6 @@
 #pragma once
 
+#include "map_store.hpp"
 #include "output_config.hpp"
 #include "output_store.hpp"
 #include "scene_store.hpp"
@@ -14,11 +15,14 @@ namespace bench {
 /// transport-neutral Composer). `AT+OUTSET`/`AT+OUTDEL` only ever edit a
 /// staged candidate topology -- never the active one, and never the
 /// current scene, in either direction. `AT+OUTSAVE` validates the WHOLE
-/// staged candidate and persists it for the **next explicit reboot only**
-/// -- this cut never live-replaces the running adapter/Composer topology,
-/// and rejects a candidate incompatible with the durable nonempty current
-/// scene. Explicitly clear/publish the scene before removing its topology.
-/// Later scene saves are also checked against the saved next-boot topology.
+/// staged candidate -- together with whatever canvas/ledmap is CURRENTLY
+/// durably saved for the next boot, `map_store.current()`, never an unsaved
+/// staged `AT+MAPSET` candidate -- and persists it for the **next explicit
+/// reboot only** -- this cut never live-replaces the running
+/// adapter/Composer topology, and rejects a candidate incompatible with the
+/// durable nonempty current scene. Explicitly clear/publish the scene
+/// before removing its topology. Later scene saves are also checked against
+/// the saved next-boot topology AND map together (`SceneStore::nextBoot()`).
 /// `AT+OUT?` distinguishes active, saved and staged configurations.
 ///
 /// @param active The topology actually driving the adapter right now
@@ -26,12 +30,16 @@ namespace bench {
 ///        staged candidate starts as a copy of it).
 /// @param store Already-usable `OutputStore` this library saves through.
 /// @param scene_store Current-scene journal used to reject a destructive topology change.
+/// @param map_store Canvas/ledmap journal, read-only from here (via
+///        `current()`) for the combined-with-map compatibility guard --
+///        this library never saves through it.
 /// @param enable true to register, false to unregister.
 /// @return ESP_OK on success (idempotent while already bound to the same
 ///         store). ESP_ERR_INVALID_STATE if a different store already
 ///         holds the binding, or `esp32libfun::at` is not initialized. A
 ///         registration error otherwise, with every partial registration
 ///         rolled back before returning.
-esp_err_t outputsAt(const Topology &active, OutputStore &store, SceneStore &scene_store, bool enable);
+esp_err_t outputsAt(const Topology &active, OutputStore &store, SceneStore &scene_store, MapStore &map_store,
+                    bool enable);
 
 } // namespace bench

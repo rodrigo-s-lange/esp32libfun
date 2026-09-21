@@ -37,8 +37,9 @@ public:
     /// on a partition/version error, same policy `SceneStore::load()`
     /// already has.
     /// @param topology The device's own active topology right now.
+    /// @param map The device's own active canvas/ledmap right now.
     /// @return ESP_OK, or an NVS error opening the partition/namespace.
-    esp_err_t begin(const Topology &topology);
+    esp_err_t begin(const Topology &topology, const MapConfig &map);
 
     /// Invokes `fn(context, info)` once per occupied position, in slot
     /// order (never save order). Read-only; does not touch storage.
@@ -102,16 +103,16 @@ private:
 
     nvs_handle_t handle_ = 0;
     esp_err_t init_error_ = ESP_ERR_INVALID_STATE;
-    // The topology `begin()` was called with -- `save()`/`load()` both
-    // validate/encode against this for the store's whole lifetime (a
-    // topology change takes effect on the next explicit reboot, same as
-    // AT+OUTSAVE's own documented contract; this store is never re-bound to
-    // a different topology mid-session). An occupied position whose own
-    // stored record is not a compatible prefix of this topology (see
-    // `isCompatiblePrefix()`) is simply not counted as occupied by THIS
-    // `begin()` scan -- its bytes are never modified or erased, and a later
-    // `begin()` against a compatible topology sees it again.
+    // The topology/map `begin()` was called with -- `save()`/`load()` both
+    // validate/encode against these for the store's whole lifetime (a
+    // topology/map change takes effect on the next explicit reboot, same as
+    // AT+OUTSAVE/AT+MAPSAVE's own documented contract; this store is never
+    // re-bound to a different topology/map mid-session). An occupied
+    // position whose own stored record is not compatible with these (see
+    // `isCompatiblePrefix()`/`isCompatibleMap()`) still occupies its slot
+    // (see `begin()`'s own doc) -- only `load()` filters by compatibility.
     Topology topology_ = defaultTopology();
+    MapConfig map_{};
     Slot slots_[kPresetSlotCount];
     // Reused across calls -- this store has exactly one caller, never the
     // render task, so no locking is needed for its own scratch buffers.

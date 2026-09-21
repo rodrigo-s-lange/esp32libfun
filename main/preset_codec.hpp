@@ -41,16 +41,20 @@ bool validPresetName(const char *name, size_t len);
 /// already has; no NVS access.
 /// @param name Preset name; validated by `validPresetName()`.
 /// @param name_len Number of bytes in `name`.
-/// @param scene Source scene (1D; every segment validated against
-///        `topology.totalPixels()`).
+/// @param scene Source scene (1D and 2D segments may be freely mixed;
+///        every segment validated against `map`'s own canvas, or
+///        `topology.totalPixels()` under the identity bypass).
 /// @param topology The device's own active topology at save time -- see
 ///        `encodeScene()`'s own doc; saving a preset always uses the
 ///        ACTIVE topology, never an unpublished/staged output configuration.
+/// @param map The device's own active canvas/ledmap at save time -- see
+///        `encodeScene()`'s own doc; saving a preset always uses the
+///        ACTIVE map, never an unpublished/staged `AT+MAPSET` candidate.
 /// @param sequence Monotonic per-position generation; zero is reserved.
 /// @param record Receives the versioned, CRC-protected bytes.
 /// @return ESP_OK, or an `encodeScene()`/name validation error.
 esp_err_t encodePreset(const char *name, size_t name_len, const esp_pixels_composer::AtScene &scene,
-                       const Topology &topology, uint64_t sequence, PresetRecord &record);
+                       const Topology &topology, const MapConfig &map, uint64_t sequence, PresetRecord &record);
 
 /// Validates every byte/field -- magic/schema/size, the outer CRC32, zero
 /// padding beyond the declared name length, a valid name, the embedded
@@ -63,6 +67,10 @@ esp_err_t encodePreset(const char *name, size_t name_len, const esp_pixels_compo
 ///        loading a preset must never unexpectedly reassign physical pins,
 ///        so an incompatible preset (see `isCompatiblePrefix()`) is
 ///        rejected here, before anything changes.
+/// @param current_map The device's own active canvas/ledmap right now --
+///        loading a preset must never unexpectedly change the active map
+///        either, so an incompatible preset (see `isCompatibleMap()`) is
+///        rejected here too, before anything changes.
 /// @param name_out Receives the nul-terminated name on success only; must
 ///        have room for at least `kPresetNameMaxLen + 1` bytes.
 /// @param name_len_out Receives the name length (excluding the terminator)
@@ -70,8 +78,9 @@ esp_err_t encodePreset(const char *name, size_t name_len, const esp_pixels_compo
 /// @param scene Receives the decoded scene on success only.
 /// @param sequence Receives the generation on success only.
 /// @return ESP_OK, or an invalid/incompatible/corrupt data error.
-esp_err_t decodePreset(const PresetRecord &record, const Topology &current_topology, char *name_out,
-                       size_t &name_len_out, esp_pixels_composer::AtScene &scene, uint64_t &sequence);
+esp_err_t decodePreset(const PresetRecord &record, const Topology &current_topology, const MapConfig &current_map,
+                       char *name_out, size_t &name_len_out, esp_pixels_composer::AtScene &scene,
+                       uint64_t &sequence);
 
 /// Validates stored content for cataloging, regardless of the current device topology.
 /// @param record Complete stored bytes.

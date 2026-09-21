@@ -1,5 +1,6 @@
 #include "output_store.hpp"
 #include "outputs_at.hpp"
+#include "map_store.hpp"
 #include "nvs_mock.hpp"
 #include "esp32libfun_at.hpp"
 #include <cstdio>
@@ -24,9 +25,11 @@
 namespace {
 namespace mock = bench_mock;
 using bench::OutputSpec;
+using bench::MapStore;
 using bench::OutputStore;
 using bench::Topology;
 static bench::SceneStore scene_journal;
+static MapStore map_journal; // never saved to in this file -- load()'d once so its own current() reads identity
 int checks = 0, failures = 0;
 #define CHECK(condition) do { ++checks; if (!(condition)) { ++failures; \
     std::printf("OUTPUTS FAIL line %d: %s\n", __LINE__, #condition); } } while (0)
@@ -119,18 +122,20 @@ void outputsAtIntegrationTests()
 {
     mock::resetAll(); // clean slate from outputStoreJournalTests()'s own leftover mock state
     static esp_pixels_composer::AtScene confirmed;
-    CHECK(scene_journal.load(bench::defaultTopology(), confirmed) == ESP_ERR_NOT_FOUND);
+    CHECK(scene_journal.load(bench::defaultTopology(), bench::MapConfig{}, confirmed) == ESP_ERR_NOT_FOUND);
     confirmed.count = 1;
     confirmed.segments[0].id = 1;
     confirmed.segments[0].stop = 50;
-    CHECK(scene_journal.save(bench::defaultTopology(), confirmed) == ESP_OK);
+    CHECK(scene_journal.save(bench::defaultTopology(), bench::MapConfig{}, confirmed) == ESP_OK);
     static OutputStore device;
     Topology probe;
     CHECK(device.load(probe) == ESP_ERR_NOT_FOUND); // first boot: no saved configuration yet
+    bench::MapConfig map_probe;
+    CHECK(map_journal.load(map_probe) == ESP_ERR_NOT_FOUND); // first boot: no saved map either
 
     // --- Phase A: AT+OUTSET stages only, validates the WHOLE candidate,
     // and leaves it unchanged on any rejected edit; AT+OUTSAVE persists it.
-    CHECK(bench::outputsAt(bench::defaultTopology(), device, scene_journal, true) == ESP_OK);
+    CHECK(bench::outputsAt(bench::defaultTopology(), device, scene_journal, map_journal, true) == ESP_OK);
     CHECK(esp32libfun::at.feedLine("AT+OUT?") == ESP_OK);
     CHECK(esp32libfun::at.feedLine("AT+OUT?=1") == ESP_OK); // dispatched, rejected internally (extra arg)
 
@@ -150,7 +155,7 @@ void outputsAtIntegrationTests()
     CHECK(esp32libfun::at.feedLine("AT+OUTSET=1,4,2049,GRB") == ESP_OK);
 
     CHECK(esp32libfun::at.feedLine("AT+OUTSAVE") == ESP_OK);
-    CHECK(bench::outputsAt(bench::defaultTopology(), device, scene_journal, false) == ESP_OK);
+    CHECK(bench::outputsAt(bench::defaultTopology(), device, scene_journal, map_journal, false) == ESP_OK);
 
     {
         // If any of the four rejected edits above had actually taken effect,
@@ -164,7 +169,7 @@ void outputsAtIntegrationTests()
 
     // --- Phase B: AT+OUTDEL shifts later slots down to stay dense, and
     // rejects removing the last remaining slot.
-    CHECK(bench::outputsAt(twoOutputs(), device, scene_journal, true) == ESP_OK); // active now matches Phase A's own result
+    CHECK(bench::outputsAt(twoOutputs(), device, scene_journal, map_journal, true) == ESP_OK); // active now matches Phase A's own result
 
     CHECK(esp32libfun::at.feedLine("AT+OUTDEL=5") == ESP_OK); // dispatched, rejected (out of range)
     CHECK(esp32libfun::at.feedLine("AT+OUTDEL=0") == ESP_OK); // valid: slot 1 shifts down to slot 0
@@ -174,10 +179,10 @@ void outputsAtIntegrationTests()
     CHECK(esp32libfun::at.feedLine("AT+OUTSAVE") == ESP_OK);
     CHECK(mock::g_output_writes == prior_writes); // nonempty current scene must remain recoverable
     confirmed.count = 0; // explicit clear permits removal of active outputs
-    CHECK(scene_journal.save(twoOutputs(), confirmed) == ESP_OK);
+    CHECK(scene_journal.save(twoOutputs(), bench::MapConfig{}, confirmed) == ESP_OK);
 
     CHECK(esp32libfun::at.feedLine("AT+OUTSAVE") == ESP_OK);
-    CHECK(bench::outputsAt(twoOutputs(), device, scene_journal, false) == ESP_OK);
+    CHECK(bench::outputsAt(twoOutputs(), device, scene_journal, map_journal, false) == ESP_OK);
 
     {
         static OutputStore reboot_b;
@@ -186,7 +191,7 @@ void outputsAtIntegrationTests()
         CHECK(persisted.count == 1 && persisted.outputs[0].pin == 4 && persisted.outputs[0].count == 20);
         confirmed.count = 1; confirmed.segments[0].stop = 50;
         const unsigned scene_writes = mock::g_scene_writes;
-        CHECK(scene_journal.save(twoOutputs(), confirmed) == ESP_ERR_INVALID_STATE);
+        CHECK(scene_journal.save(twoOutputs(), bench::MapConfig{}, confirmed) == ESP_ERR_INVALID_STATE);
         CHECK(mock::g_scene_writes == scene_writes);
         confirmed.count = 0;
     }
@@ -197,13 +202,13 @@ void outputsAtIntegrationTests()
     Topology after_phase_b;
     after_phase_b.count = 1;
     after_phase_b.outputs[0] = OutputSpec{4, 20, 0};
-    CHECK(bench::outputsAt(after_phase_b, device, scene_journal, true) == ESP_OK);
+    CHECK(bench::outputsAt(after_phase_b, device, scene_journal, map_journal, true) == ESP_OK);
 
     CHECK(esp32libfun::at.feedLine("AT+OUTSET=0,17,10,RGB") == ESP_OK); // valid pin and alternate order
     mock::g_output_fail_write = true;
     CHECK(esp32libfun::at.feedLine("AT+OUTSAVE") == ESP_OK); // dispatched, save() itself fails
     mock::g_output_fail_write = false;
-    CHECK(bench::outputsAt(after_phase_b, device, scene_journal, false) == ESP_OK);
+    CHECK(bench::outputsAt(after_phase_b, device, scene_journal, map_journal, false) == ESP_OK);
 
     {
         static OutputStore reboot_c;

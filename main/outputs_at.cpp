@@ -20,15 +20,19 @@
 //                       contiguous multi-output convention has no holes).
 //                       Rejected if it would leave zero slots (a topology
 //                       always has at least one output). Stages only.
-// - AT+OUTSAVE        -- validates the whole staged candidate and persists
-//                       it via the bound OutputStore. Takes effect on the
-//                       NEXT EXPLICIT REBOOT only -- never live-replaces
-//                       the running adapter/Composer topology, and never
-//                       discards the current saved scene: incompatible candidates
-//                       are rejected until the scene is explicitly cleared.
-//                       Later scene saves respect the saved next-boot topology.
-//                       The success response says "next reboot"
-//                       explicitly.
+// - AT+OUTSAVE        -- validates the whole staged candidate -- together
+//                       with whatever canvas/ledmap is CURRENTLY durably
+//                       saved for the next boot (MapStore::current(), never
+//                       an unsaved staged AT+MAPSET candidate) -- and
+//                       persists the topology via the bound OutputStore.
+//                       Takes effect on the NEXT EXPLICIT REBOOT only --
+//                       never live-replaces the running adapter/Composer
+//                       topology, and never discards the current saved
+//                       scene: incompatible candidates are rejected until
+//                       the scene is explicitly cleared. Later scene saves
+//                       respect the combined saved next-boot topology AND
+//                       map together (SceneStore::nextBoot()). The success
+//                       response says "next reboot" explicitly.
 //
 // Name/capacity/storage policy lives entirely here and in output_store.*/
 // output_config.* -- neither the Composer sidecar nor the adapter has any
@@ -42,6 +46,7 @@ Topology s_active = defaultTopology();
 Topology s_staged = defaultTopology();
 OutputStore *s_store = nullptr;
 SceneStore *s_scene_store = nullptr;
+MapStore *s_map_store = nullptr;
 Topology s_saved = defaultTopology();
 bool s_enabled = false;
 
@@ -210,7 +215,7 @@ void atOutSave(const char *args)
         esp32libfun::at.writeError("staged candidate invalid; nothing saved");
         return;
     }
-    if (s_scene_store->canRestoreOn(s_staged) != ESP_OK) {
+    if (s_scene_store->canRestoreOn(s_staged, s_map_store->current()) != ESP_OK) {
         esp32libfun::at.writeError("current saved scene is incompatible; keep its output prefix or explicitly clear and publish the scene first");
         return;
     }
@@ -220,7 +225,7 @@ void atOutSave(const char *args)
         return;
     }
     s_saved = s_staged;
-    s_scene_store->nextBootTopology(s_saved);
+    s_scene_store->nextBoot(s_saved, s_map_store->current());
     esp32libfun::at.writeOk("OUTSAVE outputs=%u; applied on next explicit reboot, not now",
                             static_cast<unsigned>(s_staged.count));
 }
@@ -248,7 +253,8 @@ esp_err_t unregisterCommand(const char *command)
 
 } // namespace
 
-esp_err_t outputsAt(const Topology &active, OutputStore &store, SceneStore &scene_store, bool enable)
+esp_err_t outputsAt(const Topology &active, OutputStore &store, SceneStore &scene_store, MapStore &map_store,
+                    bool enable)
 {
     if (!enable) {
         if (!s_enabled || s_store != &store) {
@@ -262,6 +268,7 @@ esp_err_t outputsAt(const Topology &active, OutputStore &store, SceneStore &scen
         s_enabled = false;
         s_store = nullptr;
         s_scene_store = nullptr;
+        s_map_store = nullptr;
         return result;
     }
 
@@ -289,10 +296,11 @@ esp_err_t outputsAt(const Topology &active, OutputStore &store, SceneStore &scen
     }
 
     s_active = active;
-    s_saved = active;
+    s_saved = store.current();
     s_staged = active; // staged candidate starts as a copy of the active topology
     s_store = &store;
     s_scene_store = &scene_store;
+    s_map_store = &map_store;
     s_enabled = true;
     return ESP_OK;
 }

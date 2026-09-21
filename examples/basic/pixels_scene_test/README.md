@@ -163,3 +163,72 @@ checks on GPIO4/5; see `examples/basic/pixels_adapter_test`.
   or mock involved, deliberately: the preset mock's own per-key buffer
   (160 bytes) is sized only for the small 0-2 segment scenes every
   `PresetStore`-level gate actually uses.
+
+### 2D canvas / ledmap — built and executed on WROOM
+
+`scene_codec.*`/`scene_store.*`/`preset_codec.*`/`preset_store.*` were
+extended again for schema 3's own map-aware header (see `main/README.md`'s
+own "2D canvas / ledmap" section for the full contract); this image was
+rebuilt against them and now additionally links a new `test_map.cpp` plus
+the real application `map_store.cpp`/`map_at.cpp`. Build and hardware
+execution passed; see the review-integration counts below.
+
+- `test_scene.cpp`'s `codecTests()` gained a real (non-identity) 5x14
+  matrix round trip over the same two-output, 70-pixel topology used by the
+  boundary-crossing demonstration: one 2D segment filling the whole canvas
+  mixed with one 1D segment addressing the flat row-major canvas space
+  directly, both decoded back correctly; the identical bytes rejected
+  outright under the identity canvas (`isCompatibleMap()` requires an EXACT
+  match once a record's own map is a real matrix); and a 2D segment one
+  column past the matrix width rejected at encode time. `journalTests()`
+  gained a fourth compatibility gate, probing the SAME real single-output
+  record the existing changed-pin gate already uses: installing a serpentine
+  matrix as the CURRENT map is incompatible for that old identity record,
+  while a zero-offset progressive matrix covering its domain is compatible -- proven
+  through the identical direct-`decodeScene()`-probe technique, no new
+  `SceneStore` instance.
+- New `test_map.cpp`, mirroring `test_outputs.cpp`'s own structure exactly:
+  `MapStore`'s own A/B journal (load/save, dedup-on-unchanged, torn-write
+  fallback, write/commit/readback failure-then-successful-retry, a
+  structurally invalid candidate rejected before any write), then one
+  continuous three-phase `mapAt` AT-library session reusing a single
+  "device" `MapStore` instance the way one real boot would (`AT+MAPSET`
+  staging a real matrix bounded by the currently-saved output topology,
+  rejecting an out-of-bounds candidate without altering the staged
+  candidate, `AT+MAPSAVE` persisting it; `AT+MAPCLR` reverting to identity;
+  a failed `AT+MAPSAVE` leaving the previously durable configuration
+  exactly as it was) -- each phase's own persisted result independently
+  re-verified through its own fresh `MapStore` instance.
+- `main/nvs_mock.hpp`/`.cpp` gained a fourth mock target for `MapStore`'s
+  own `map_a`/`map_b` keys/`"pixels_map"` namespace (handle 4), the same
+  namespace-aware `__wrap_nvs_open()` dispatch the output mock already
+  established.
+- Schema 3's own header (+7 bytes, the map descriptor, always present) and
+  per-segment layout (+5 bytes: a 1-byte shape discriminator plus `w`/`h`;
+  2D reuses the existing `start`/`stop` bytes as `x`/`y`, so there is no
+  redundant second geometry pair) grow `kSceneRecordBytes`/
+  `kPresetRecordBytes` further still (see `main/README.md`'s own
+  recalculation). This image's own link-time DRAM margin is **95.43% used,
+  ~8.1 KiB free** -- tighter than the previous delivery's own reviewed
+  19944-byte margin (the growth this time crosses into a new NVS-entry
+  rounding bucket too, see `main/README.md`), but still fits with no
+  further static-instance trimming needed. Any future addition to this
+  specific binary should re-measure this margin before assuming it still
+  fits.
+
+### 2D review integration (2026-09-15)
+
+The permanent runner now invokes `run_xy_gradient_tests()` and reports its
+result/count together with the existing suites. Composer AT gates include
+mixed 1D/2D scenes, two-output mapping, shape replacement and invalid-input
+preservation. Map gates cover both save orders, pending-layout guards and a
+2D scene journal reboot. Independent schema-1/2 byte fixtures check continued
+compatibility without using the new encoder to create the old format.
+
+Reviewed build: 544144-byte binary; 172488 bytes static DRAM (95.44%), with
+8248 bytes remaining. Additional test fixtures are checked temporary heap
+allocations, not more persistent static instances. Build and WROOM/COM6
+execution passed: 6180 checks, zero failures, including the allocation gates.
+The independent adapter runner passed 172 additional checks. Build log:
+`build/2d-review-build.log`; serial logs in the root application's
+`build-wroom-rmt-safe/bench-2d-20260915/`. No existing suite was removed.

@@ -69,20 +69,20 @@ void presetCodecTests()
     for (size_t i = 0; i < bench::kPresetNameMaxLen; ++i) { name31[i] = static_cast<char>('A' + (i % 26)); }
     name31[bench::kPresetNameMaxLen] = '\0';
 
-    CHECK(bench::encodePreset(name31, bench::kPresetNameMaxLen, scene, topology2, generation, record) == ESP_OK);
+    CHECK(bench::encodePreset(name31, bench::kPresetNameMaxLen, scene, topology2, bench::MapConfig{}, generation, record) == ESP_OK);
     CHECK(record.size == bench::kPresetRecordBytes);
     CHECK(record.bytes[0] == 'P' && record.bytes[1] == 'S' && record.bytes[2] == 'T' && record.bytes[3] == '1');
 
     char decoded_name[bench::kPresetNameMaxLen + 1];
     size_t decoded_name_len = 0;
     uint64_t found = 0;
-    CHECK(bench::decodePreset(record, topology2, decoded_name, decoded_name_len, decoded, found) == ESP_OK);
+    CHECK(bench::decodePreset(record, topology2, bench::MapConfig{}, decoded_name, decoded_name_len, decoded, found) == ESP_OK);
     CHECK(found == generation);
     CHECK(decoded_name_len == bench::kPresetNameMaxLen &&
           std::memcmp(decoded_name, name31, bench::kPresetNameMaxLen) == 0);
     CHECK(decoded.count == comp::MAX_SEGMENTS && decoded.brightness == 60 && decoded.paused);
 
-    CHECK(bench::encodePreset(decoded_name, decoded_name_len, decoded, topology2, found, reencoded) == ESP_OK);
+    CHECK(bench::encodePreset(decoded_name, decoded_name_len, decoded, topology2, bench::MapConfig{}, found, reencoded) == ESP_OK);
     CHECK(record.size == reencoded.size && std::memcmp(record.bytes, reencoded.bytes, record.size) == 0);
 
     // Exhaustive per-byte corruption, same discipline scene_codec.hpp's own
@@ -90,7 +90,7 @@ void presetCodecTests()
     for (size_t i = 0; i < record.size; ++i) {
         record.bytes[i] ^= 0x80;
         decoded.count = 7; found = 123;
-        CHECK(bench::decodePreset(record, topology2, decoded_name, decoded_name_len, decoded, found) != ESP_OK &&
+        CHECK(bench::decodePreset(record, topology2, bench::MapConfig{}, decoded_name, decoded_name_len, decoded, found) != ESP_OK &&
               decoded.count == 7 && found == 123);
         record.bytes[i] ^= 0x80;
     }
@@ -98,7 +98,7 @@ void presetCodecTests()
     const size_t full_size = record.size;
     for (size_t size : {size_t(0), size_t(80), full_size - 1, full_size + 1}) {
         record.size = size;
-        CHECK(bench::decodePreset(record, topology2, decoded_name, decoded_name_len, decoded, found) != ESP_OK);
+        CHECK(bench::decodePreset(record, topology2, bench::MapConfig{}, decoded_name, decoded_name_len, decoded, found) != ESP_OK);
     }
     record.size = full_size;
 
@@ -107,19 +107,19 @@ void presetCodecTests()
     reencoded = record;
     reencoded.bytes[16] = 0; // name_len == 0
     renewPresetCrc(reencoded);
-    CHECK(bench::decodePreset(reencoded, topology2, decoded_name, decoded_name_len, decoded, found) != ESP_OK);
+    CHECK(bench::decodePreset(reencoded, topology2, bench::MapConfig{}, decoded_name, decoded_name_len, decoded, found) != ESP_OK);
 
     reencoded = record;
     reencoded.bytes[16] = static_cast<uint8_t>(bench::kPresetNameMaxLen + 1); // name_len too large
     renewPresetCrc(reencoded);
-    CHECK(bench::decodePreset(reencoded, topology2, decoded_name, decoded_name_len, decoded, found) != ESP_OK);
+    CHECK(bench::decodePreset(reencoded, topology2, bench::MapConfig{}, decoded_name, decoded_name_len, decoded, found) != ESP_OK);
 
     reencoded = record;
     reencoded.bytes[16] = 5; // shrinks the declared name; bytes 5..31 of the
                              // 32-byte field are still the original letters,
                              // so this also exercises "padding must be zero".
     renewPresetCrc(reencoded);
-    CHECK(bench::decodePreset(reencoded, topology2, decoded_name, decoded_name_len, decoded, found) != ESP_OK);
+    CHECK(bench::decodePreset(reencoded, topology2, bench::MapConfig{}, decoded_name, decoded_name_len, decoded, found) != ESP_OK);
 
     // Outer generation changed independently of the embedded scene's own
     // (unchanged) generation -- the cross-check must catch it.
@@ -131,11 +131,11 @@ void presetCodecTests()
     found = 123;
     std::strcpy(decoded_name, "unchanged");
     decoded_name_len = 9;
-    CHECK(bench::decodePreset(reencoded, topology2, decoded_name, decoded_name_len, decoded, found) != ESP_OK);
+    CHECK(bench::decodePreset(reencoded, topology2, bench::MapConfig{}, decoded_name, decoded_name_len, decoded, found) != ESP_OK);
     CHECK(decoded.count == 7 && decoded.brightness == 219 && found == 123);
     CHECK(decoded_name_len == 9 && std::strcmp(decoded_name, "unchanged") == 0);
 
-    CHECK(bench::encodePreset(name31, bench::kPresetNameMaxLen, scene, topology2, 0, reencoded) != ESP_OK); // sequence == 0
+    CHECK(bench::encodePreset(name31, bench::kPresetNameMaxLen, scene, topology2, bench::MapConfig{}, 0, reencoded) != ESP_OK); // sequence == 0
 
     CHECK(bench::validPresetName(name31, bench::kPresetNameMaxLen));
     CHECK(!bench::validPresetName(name31, 0));
@@ -147,10 +147,10 @@ void presetCodecTests()
     // single output this time, so the inner scene record itself is smaller.
     const bench::Topology topology1 = bench::defaultTopology();
     scene = comp::AtScene{};
-    CHECK(bench::encodePreset("Empty", 5, scene, topology1, 1, reencoded) == ESP_OK);
-    CHECK(reencoded.size == bench::kPresetHeaderBytes + 31 + 4 + 4); // inner and outer CRC32
+    CHECK(bench::encodePreset("Empty", 5, scene, topology1, bench::MapConfig{}, 1, reencoded) == ESP_OK);
+    CHECK(reencoded.size == bench::kPresetHeaderBytes + 38 + 4 + 4); // schema 3, one output, identity map; inner and outer CRC32
     decoded.count = 7;
-    CHECK(bench::decodePreset(reencoded, topology1, decoded_name, decoded_name_len, decoded, found) == ESP_OK &&
+    CHECK(bench::decodePreset(reencoded, topology1, bench::MapConfig{}, decoded_name, decoded_name_len, decoded, found) == ESP_OK &&
           decoded.count == 0);
 }
 
@@ -255,7 +255,7 @@ void presetStoreCorruptRecoveryTest(bench::PresetStore &store)
             bench::PresetRecord probe_record;
             probe_record.size = mock::g_preset_slots[s][1].size;
             std::memcpy(probe_record.bytes, mock::g_preset_slots[s][1].bytes, probe_record.size);
-            if (bench::decodePreset(probe_record, bench::defaultTopology(), name_out, name_len, probe_scene, seq) ==
+            if (bench::decodePreset(probe_record, bench::defaultTopology(), bench::MapConfig{}, name_out, name_len, probe_scene, seq) ==
                     ESP_OK &&
                 name_len == 4 && std::memcmp(name_out, "Torn", 4) == 0) {
                 torn_slot = static_cast<int>(s);
@@ -270,7 +270,7 @@ void presetStoreCorruptRecoveryTest(bench::PresetStore &store)
     // recovered instead, same discipline SceneStore already has.
     mock::g_preset_slots[static_cast<unsigned>(torn_slot)][1].bytes[60] ^= 1;
     static bench::PresetStore reboot;
-    CHECK(reboot.begin(bench::defaultTopology()) == ESP_OK);
+    CHECK(reboot.begin(bench::defaultTopology(), bench::MapConfig{}) == ESP_OK);
     restored = comp::AtScene{};
     CHECK(reboot.load("Torn", 4, restored) == ESP_OK && restored.segments[0].id == 1);
 
@@ -449,7 +449,7 @@ void presetsAtLoadRejectsMissingOrCorrupt(bench::PresetStore &store)
             bench::PresetRecord probe_record;
             probe_record.size = mock::g_preset_slots[s][ab].size;
             std::memcpy(probe_record.bytes, mock::g_preset_slots[s][ab].bytes, probe_record.size);
-            if (bench::decodePreset(probe_record, bench::defaultTopology(), name_out, name_len, probe_scene, seq) ==
+            if (bench::decodePreset(probe_record, bench::defaultTopology(), bench::MapConfig{}, name_out, name_len, probe_scene, seq) ==
                     ESP_OK &&
                 name_len == 7 && std::memcmp(name_out, "Corrupt", 7) == 0) {
                 slot = static_cast<int>(s);
@@ -561,7 +561,7 @@ void presetTopologyCatalogTests()
     static comp::AtScene scene;
     scene = comp::AtScene{};
     scene.count = 1; scene.segments[0].id = 1; scene.segments[0].stop = 1;
-    CHECK(writer->begin(bench::defaultTopology()) == ESP_OK);
+    CHECK(writer->begin(bench::defaultTopology(), bench::MapConfig{}) == ESP_OK);
     CHECK(writer->save("Q000", 4, scene) == ESP_OK);
     delete writer;
 
@@ -570,7 +570,7 @@ void presetTopologyCatalogTests()
     writer = new (std::nothrow) bench::PresetStore;
     CHECK(writer != nullptr);
     if (writer == nullptr) { return; }
-    CHECK(writer->begin(two) == ESP_OK);
+    CHECK(writer->begin(two, bench::MapConfig{}) == ESP_OK);
     scene.segments[0].id = 2;
     CHECK(writer->save("Q000", 4, scene) == ESP_OK); // newer incompatible B must beat older compatible A
     char name[8];
@@ -582,7 +582,7 @@ void presetTopologyCatalogTests()
     auto *reader = new (std::nothrow) bench::PresetStore;
     CHECK(reader != nullptr);
     if (reader == nullptr) { return; }
-    CHECK(reader->begin(bench::defaultTopology()) == ESP_OK);
+    CHECK(reader->begin(bench::defaultTopology(), bench::MapConfig{}) == ESP_OK);
     unsigned occupied = 0;
     reader->list([](void *ctx, const bench::PresetInfo &) { ++*static_cast<unsigned *>(ctx); }, &occupied);
     CHECK(occupied == 100);
@@ -596,7 +596,7 @@ void presetTopologyCatalogTests()
     reader = new (std::nothrow) bench::PresetStore;
     CHECK(reader != nullptr);
     if (reader == nullptr) { return; }
-    CHECK(reader->begin(two) == ESP_OK);
+    CHECK(reader->begin(two, bench::MapConfig{}) == ESP_OK);
     CHECK(reader->load("Q000", 4, scene) == ESP_OK && scene.segments[0].id == 2);
     delete reader;
 }
@@ -609,7 +609,7 @@ int run_preset_tests()
     presetCodecTests();
 
     static bench::PresetStore store; // shared by every gate below except capacity's own fill loop
-    if (store.begin(bench::defaultTopology()) != ESP_OK) { CHECK(false); }
+    if (store.begin(bench::defaultTopology(), bench::MapConfig{}) != ESP_OK) { CHECK(false); }
     presetStoreTwoNamesReplaceDeleteTest(store);
     presetStoreCorruptRecoveryTest(store);
     presetStoreFailureRetryTest(store);

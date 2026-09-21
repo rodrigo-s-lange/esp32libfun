@@ -30,6 +30,13 @@ bool g_output_fail_write = false;
 bool g_output_fail_commit = false;
 bool g_output_fail_readback = false;
 
+MapMockSlot g_map_slots[2];
+unsigned g_map_writes = 0;
+unsigned g_map_commits = 0;
+bool g_map_fail_write = false;
+bool g_map_fail_commit = false;
+bool g_map_fail_readback = false;
+
 void resetAll()
 {
     if (g_preset_slots == nullptr) {
@@ -61,6 +68,13 @@ void resetAll()
     g_output_fail_write = false;
     g_output_fail_commit = false;
     g_output_fail_readback = false;
+
+    for (auto &s : g_map_slots) { s = MapMockSlot{}; }
+    g_map_writes = 0;
+    g_map_commits = 0;
+    g_map_fail_write = false;
+    g_map_fail_commit = false;
+    g_map_fail_readback = false;
 }
 
 void resetPresets()
@@ -99,18 +113,25 @@ bool parsePresetKey(const char *key, unsigned &slot, unsigned &ab)
 // Handles: 1 = SceneStore's own default-partition open (nvs_flash_init()/
 // nvs_open("pixels_scene", ...)); 2 = the preset mock's named-partition open
 // (nvs_flash_init_partition()/nvs_open_from_partition()); 3 = OutputStore's
-// own default-partition open (nvs_open("pixels_outputs", ...) -- the SAME
-// nvs_open() entry point SceneStore uses, distinguished here by namespace
-// string so nvs_commit() (which carries no key of its own) can still tell
-// all three apart. nvs_get_blob()/nvs_set_blob()/nvs_erase_key() dispatch
-// purely by key shape instead, so they work regardless of which handle was
-// passed.
+// own default-partition open (nvs_open("pixels_outputs", ...)); 4 =
+// MapStore's own default-partition open (nvs_open("pixels_map", ...)) --
+// the SAME nvs_open() entry point SceneStore/OutputStore use, distinguished
+// here by namespace string so nvs_commit() (which carries no key of its
+// own) can still tell all four apart. nvs_get_blob()/nvs_set_blob()/
+// nvs_erase_key() dispatch purely by key shape instead, so they work
+// regardless of which handle was passed.
 
 extern "C" esp_err_t __wrap_nvs_flash_init() { return bench_mock::g_scene_init_error; }
 
 extern "C" esp_err_t __wrap_nvs_open(const char *namespace_name, nvs_open_mode_t, nvs_handle_t *handle)
 {
-    *handle = (namespace_name != nullptr && std::strcmp(namespace_name, "pixels_outputs") == 0) ? 3 : 1;
+    if (namespace_name != nullptr && std::strcmp(namespace_name, "pixels_outputs") == 0) {
+        *handle = 3;
+    } else if (namespace_name != nullptr && std::strcmp(namespace_name, "pixels_map") == 0) {
+        *handle = 4;
+    } else {
+        *handle = 1;
+    }
     return ESP_OK;
 }
 
@@ -133,6 +154,14 @@ bool parseOutputKey(const char *key, unsigned &ab)
     if (std::strcmp(key, "outputs_b") == 0) { ab = 1; return true; }
     return false;
 }
+// True (with `ab` populated) iff `key` is exactly "map_a"/"map_b".
+bool parseMapKey(const char *key, unsigned &ab)
+{
+    if (key == nullptr) { return false; }
+    if (std::strcmp(key, "map_a") == 0) { ab = 0; return true; }
+    if (std::strcmp(key, "map_b") == 0) { ab = 1; return true; }
+    return false;
+}
 } // namespace
 
 extern "C" esp_err_t __wrap_nvs_get_blob(nvs_handle_t, const char *key, void *value, size_t *size)
@@ -151,6 +180,15 @@ extern "C" esp_err_t __wrap_nvs_get_blob(nvs_handle_t, const char *key, void *va
     if (parseOutputKey(key, ab)) {
         if (bench_mock::g_output_fail_readback) { return ESP_FAIL; }
         const auto &r = bench_mock::g_output_slots[ab];
+        if (r.size == 0) { return ESP_ERR_NVS_NOT_FOUND; }
+        if (*size < r.size) { *size = r.size; return ESP_ERR_NVS_INVALID_LENGTH; }
+        *size = r.size;
+        std::memcpy(value, r.bytes, r.size);
+        return ESP_OK;
+    }
+    if (parseMapKey(key, ab)) {
+        if (bench_mock::g_map_fail_readback) { return ESP_FAIL; }
+        const auto &r = bench_mock::g_map_slots[ab];
         if (r.size == 0) { return ESP_ERR_NVS_NOT_FOUND; }
         if (*size < r.size) { *size = r.size; return ESP_ERR_NVS_INVALID_LENGTH; }
         *size = r.size;
@@ -187,6 +225,14 @@ extern "C" esp_err_t __wrap_nvs_set_blob(nvs_handle_t, const char *key, const vo
         if (bench_mock::g_output_fail_write) { r.bytes[0] ^= 1; return ESP_FAIL; } // simulated torn write
         return ESP_OK;
     }
+    if (parseMapKey(key, ab)) {
+        ++bench_mock::g_map_writes;
+        auto &r = bench_mock::g_map_slots[ab];
+        r.size = size;
+        std::memcpy(r.bytes, value, size);
+        if (bench_mock::g_map_fail_write) { r.bytes[0] ^= 1; return ESP_FAIL; } // simulated torn write
+        return ESP_OK;
+    }
     ++bench_mock::g_scene_writes;
     auto &r = bench_mock::g_scene_slots[std::strcmp(key, "scene_a") == 0 ? 0 : 1];
     r.size = size;
@@ -204,6 +250,10 @@ extern "C" esp_err_t __wrap_nvs_commit(nvs_handle_t handle)
     if (handle == 3) {
         ++bench_mock::g_output_commits;
         return bench_mock::g_output_fail_commit ? ESP_FAIL : ESP_OK;
+    }
+    if (handle == 4) {
+        ++bench_mock::g_map_commits;
+        return bench_mock::g_map_fail_commit ? ESP_FAIL : ESP_OK;
     }
     ++bench_mock::g_scene_commits;
     return bench_mock::g_scene_fail_commit ? ESP_FAIL : ESP_OK;

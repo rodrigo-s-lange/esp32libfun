@@ -9,10 +9,11 @@ constexpr const char *kKeys[] = {"scene_a", "scene_b"};
 constexpr const char *kTag = "SCENE_NVS";
 }
 
-esp_err_t SceneStore::load(const Topology &topology, esp_pixels_composer::AtScene &scene)
+esp_err_t SceneStore::load(const Topology &topology, const MapConfig &map, esp_pixels_composer::AtScene &scene)
 {
     if (handle_ != 0) { return ESP_ERR_INVALID_STATE; }
     bound_topology_ = topology;
+    bound_map_ = map;
     init_error_ = nvs_flash_init();
     // Deliberately no erase/retry on NO_FREE_PAGES or NEW_VERSION_FOUND.
     if (init_error_ != ESP_OK) { return init_error_; }
@@ -36,7 +37,7 @@ esp_err_t SceneStore::load(const Topology &topology, esp_pixels_composer::AtScen
             }
         }
         if (active_slot_ >= 0 && candidate_sequence <= sequence_) { continue; }
-        err = decodeScene(scratch_, topology, scene, candidate_sequence);
+        err = decodeScene(scratch_, topology, map, scene, candidate_sequence);
         if (err != ESP_OK) {
             last_error = err;
             ESP_LOGW(kTag, "slot %d rejected (incompatible or corrupt): %s", slot, esp_err_to_name(err));
@@ -52,19 +53,26 @@ esp_err_t SceneStore::load(const Topology &topology, esp_pixels_composer::AtScen
     return ESP_OK;
 }
 
-esp_err_t SceneStore::save(const Topology &topology, const esp_pixels_composer::AtScene &scene)
+esp_err_t SceneStore::save(const Topology &topology, const MapConfig &map, const esp_pixels_composer::AtScene &scene)
 {
     if (init_error_ != ESP_OK) { return init_error_; }
     if (handle_ == 0 || sequence_ == UINT64_MAX) { return ESP_ERR_INVALID_STATE; }
-    if (next_topology_set_ && scene.count != 0 && !isCompatiblePrefix(topology, next_topology_)) {
-        return ESP_ERR_INVALID_STATE; // apply the saved output change by rebooting before saving a new scene
+    if (scene.count > esp_pixels_composer::MAX_SEGMENTS) { return ESP_ERR_INVALID_ARG; }
+    bool has_2d = false;
+    for (uint8_t i = 0; i < scene.count; ++i) { has_2d = has_2d || scene.segments[i].is2D; }
+    if (next_set_ && scene.count != 0 &&
+        !(next_map_.valid(next_topology_.totalPixels()) &&
+          isCompatiblePrefix(topology, next_topology_) &&
+          isCompatibleMap(map, next_map_, has_2d ? 0 : topology.totalPixels()))) {
+        return ESP_ERR_INVALID_STATE; // apply the saved output/map change by rebooting before saving a new scene
     }
     bound_topology_ = topology;
-    esp_err_t err = encodeScene(scene, topology, sequence_ + 1, scratch_);
+    bound_map_ = map;
+    esp_err_t err = encodeScene(scene, topology, map, sequence_ + 1, scratch_);
     if (err != ESP_OK) { return err; }
     // Compare canonical bytes excluding generation and CRC: bytes [0:8)
-    // (magic+schema+size -- a schema change, e.g. an old v1 record's next
-    // save upgrading it to v2, always compares unequal here, exactly as it
+    // (magic+schema+size -- a schema change, e.g. an old v1/v2 record's next
+    // save upgrading it to v3, always compares unequal here, exactly as it
     // should) and everything from [16:size-4) (skipping the 8-byte
     // generation and the trailing 4-byte CRC).
     if (active_slot_ >= 0 && cached_.size == scratch_.size &&
@@ -95,18 +103,18 @@ esp_err_t SceneStore::saveCallback(const esp_pixels_composer::AtScene &scene, vo
 {
     if (context == nullptr) { return ESP_ERR_INVALID_ARG; }
     SceneStore *self = static_cast<SceneStore *>(context);
-    return self->save(self->bound_topology_, scene);
+    return self->save(self->bound_topology_, self->bound_map_, scene);
 }
 
-esp_err_t SceneStore::canRestoreOn(const Topology &topology) const
+esp_err_t SceneStore::canRestoreOn(const Topology &topology, const MapConfig &map) const
 {
-    if (!topology.valid()) { return ESP_ERR_INVALID_ARG; }
+    if (!topology.valid() || !map.valid(topology.totalPixels())) { return ESP_ERR_INVALID_ARG; }
     if (init_error_ != ESP_OK || handle_ == 0) { return ESP_ERR_INVALID_STATE; }
     if (cached_.size == 0) { return ESP_OK; }
     static esp_pixels_composer::AtScene decoded; // single control caller, off the AT stack
     uint64_t generation = 0;
     esp_err_t err = decodeStoredScene(cached_, decoded, generation);
     if (err != ESP_OK || decoded.count == 0) { return err; }
-    return decodeScene(cached_, topology, decoded, generation);
+    return decodeScene(cached_, topology, map, decoded, generation);
 }
 } // namespace bench

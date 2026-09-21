@@ -135,7 +135,7 @@ void atPresetLoad(const char *args)
     esp_err_t err = s_store->load(name, name_len, scene);
     if (err != ESP_OK) {
         if (err == ESP_ERR_NOT_SUPPORTED) {
-            esp32libfun::at.writeError("preset output topology incompatible; restore its pin/count/order configuration; scene unchanged");
+            esp32libfun::at.writeError("preset layout incompatible; restore its output pin/count/order and canvas/map; scene unchanged");
             return;
         }
         esp32libfun::at.writeError("preset not usable: %s; active scene unchanged", esp_err_to_name(err));
