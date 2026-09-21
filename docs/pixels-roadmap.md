@@ -63,7 +63,7 @@ operator visual confirmation. Announce and obtain confirmation before visual
 changes; arrange extra output wiring with Rodrigo before touching hardware.
 Do not infer push/tag/flash authorization from an earlier delivery.
 
-Next delivery: symmetric mirror per segment; implementation brief still to be prepared.
+Next task: [symmetric mirror per 1D segment](pixels-mirror-task.md).
 Completed briefs: [2D canvas / ledmap](pixels-2d-task.md),
 [multiple physical outputs](pixels-outputs-task.md) and
 [named presets](pixels-presets-task.md).
