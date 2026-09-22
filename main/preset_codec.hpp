@@ -11,10 +11,14 @@ constexpr size_t kPresetNameFieldBytes = 32; ///< fixed on-disk field (zero-padd
 constexpr size_t kPresetHeaderBytes =
     4 /*magic*/ + 2 /*schema*/ + 2 /*size*/ + 8 /*generation*/ + 1 /*name_len*/ + kPresetNameFieldBytes; // 49
 /// Maximum total record size: header + a maximum-sized scene_codec record + a trailing CRC32.
-/// At kMaxOutputs==2, MAX_SEGMENTS==32: 49 + 1128 + 4 = 1181 (schema-2's own
-/// variable-size header, kSceneHeaderBytesV2Max==36, makes kSceneRecordBytes
-/// 4 bytes bigger than the single-output-only schema-1 baseline of 1124 --
-/// see main/README.md's own record-size recalculation for this delivery).
+/// At kMaxOutputs==2, MAX_SEGMENTS==32: 49 + 1295 + 4 = 1348 (schema-3/4's
+/// own shared worst case -- see `kSceneRecordBytes`'s own doc). This preset
+/// wrapper's own `kSchema` (preset_codec.cpp) is an independent format
+/// version for the OUTER record only; it does not change with the INNER
+/// scene's own schema number, since the inner bytes are copied through
+/// opaquely (see `encodePreset()`/`decodePreset()`) -- schema 4's own
+/// flags-byte reinterpretation (Task 7G) needed no change here, and this
+/// maximum is unchanged from the prior (schema-3) delivery.
 constexpr size_t kPresetRecordBytes = kPresetHeaderBytes + kSceneRecordBytes + 4;
 
 struct PresetRecord {

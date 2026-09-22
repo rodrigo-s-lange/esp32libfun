@@ -101,7 +101,8 @@ void atPresetSave(const char *args)
     }
 
     static esp_pixels_composer::AtScene scene; // large; kept off this task's own stack
-    scene = esp_pixels_composer::AtScene{};
+    // Export fills count, globals and every used segment. Clearing with a
+    // whole AtScene temporary would put the large object back on the stack.
     esp_err_t err = esp_pixels_composer::exportConfirmedScene(*s_composer, scene);
     if (err != ESP_OK) {
         esp32libfun::at.writeError("no confirmed scene to save: %s; confirm with AT+SEGPUB first",
@@ -131,7 +132,8 @@ void atPresetLoad(const char *args)
     }
 
     static esp_pixels_composer::AtScene scene; // large; kept off this task's own stack
-    scene = esp_pixels_composer::AtScene{};
+    // Decode fills count, globals and every used segment on success. Never
+    // consume this scratch scene on error; no whole-scene temporary needed.
     esp_err_t err = s_store->load(name, name_len, scene);
     if (err != ESP_OK) {
         if (err == ESP_ERR_NOT_SUPPORTED) {

@@ -8,7 +8,8 @@ namespace fx = esp_pixels_fx;
 constexpr uint32_t kMagic = 0x314e4353; // SCN1 -- shared by all three schemas
 constexpr uint16_t kSchemaV1 = 1;       // published bench format: one fixed GPIO16/50/GRB output; read-only from here
 constexpr uint16_t kSchemaV2 = 2;       // prior delivery's format: 1..kMaxOutputs configured outputs, no map/2D; read-only from here
-constexpr uint16_t kSchemaV3 = 3;       // this delivery's format: adds map/2D segments
+constexpr uint16_t kSchemaV3 = 3;       // prior delivery's format: adds map/2D segments; read-only from here
+constexpr uint16_t kSchemaV4 = 4;       // this delivery's format: schema 3's own reverse byte becomes a flags byte (bit0 reverse, bit1 mirror)
 // Semantic IDs/parameter meanings, not the C++ ABI. Bump on incompatible FX changes.
 constexpr uint32_t kFxCatalog = 0x00020000;
 
@@ -54,7 +55,7 @@ bool valid(const comp::SegmentSpec &s, uint16_t canvas_width, uint16_t canvas_he
         return false;
     }
     if (s.is2D) {
-        if (s.reversed || s.w == 0 || s.h == 0 ||
+        if (s.reversed || s.mirror || s.w == 0 || s.h == 0 ||
             static_cast<uint32_t>(s.x) + s.w > canvas_width || static_cast<uint32_t>(s.y) + s.h > canvas_height) {
             return false;
         }
@@ -65,6 +66,16 @@ bool valid(const comp::SegmentSpec &s, uint16_t canvas_width, uint16_t canvas_he
     return s.start < s.stop && s.stop <= canvas_cells && (info->dim & fx::FX_DIM_1D) != 0;
 }
 
+// Schema 4's own per-segment layout: byte-for-byte identical to schema 3's
+// (same kSceneSegmentBytesV3 == 39, same field positions) except the ONE
+// byte at this exact position, which schema 3 wrote as a strict 0/1
+// `reversed` value -- schema 4 instead writes a flags byte (bit0 reversed,
+// bit1 mirror, Task 7G). This is the ONLY encoder now used (encodeScene()
+// always writes the latest schema); decodeSegment() below still reads the
+// OLD strict schema-3 meaning for a schema-3 record, unchanged, and
+// decodeSegmentV4() reads this new flags meaning for a schema-4 one -- the
+// two are never conflated, and no old record's own byte is ever
+// reinterpreted in place.
 void encodeSegment(uint8_t *&p, const comp::SegmentSpec &s)
 {
     put(p, s.id, 4);
@@ -72,7 +83,8 @@ void encodeSegment(uint8_t *&p, const comp::SegmentSpec &s)
     put(p, s.is2D ? s.y : s.stop, 2);
     put(p, s.effect_id, 1); put(p, s.brightness, 1);
     put(p, static_cast<uint8_t>(s.blend), 1); put(p, s.opacity, 1);
-    put(p, s.reversed, 1); put(p, static_cast<uint8_t>(s.state), 1);
+    const uint8_t flags = (s.reversed ? 1U : 0U) | (s.mirror ? 2U : 0U);
+    put(p, flags, 1); put(p, static_cast<uint8_t>(s.state), 1);
     put(p, s.restart_generation, 4);
     for (const auto &color : s.params.color) {
         put(p, color.r, 1); put(p, color.g, 1); put(p, color.b, 1);
@@ -85,6 +97,11 @@ void encodeSegment(uint8_t *&p, const comp::SegmentSpec &s)
     put(p, s.is2D ? s.h : 0, 2);
 }
 
+// Schema 3's own reader: read-only from here on (nothing encodes this
+// layout anymore) -- strictly validates the old 0/1-only `reversed` byte
+// meaning, exactly as schema 3 originally defined it, and never sets
+// `mirror` (a schema-3 record predates that field entirely; `s.mirror`
+// stays `false`, its own default from `s = comp::SegmentSpec{}` below).
 bool decodeSegment(const uint8_t *&p, comp::SegmentSpec &s, uint16_t canvas_width, uint16_t canvas_height)
 {
     s = comp::SegmentSpec{};
@@ -107,6 +124,45 @@ bool decodeSegment(const uint8_t *&p, comp::SegmentSpec &s, uint16_t canvas_widt
     const uint16_t w = static_cast<uint16_t>(get(p, 2));
     const uint16_t h = static_cast<uint16_t>(get(p, 2));
     if (is2D > 1 || reversed > 1) { return false; }
+    s.is2D = is2D != 0;
+    if (s.is2D) {
+        s.x = field1; s.y = field2; s.w = w; s.h = h;
+    } else {
+        s.start = field1; s.stop = field2;
+        if (w != 0 || h != 0) { return false; } // "only the active geometry fields" -- the inactive pair must be zero
+    }
+    return valid(s, canvas_width, canvas_height);
+}
+
+// Schema 4's own reader (Task 7G): byte-for-byte identical to
+// decodeSegment() above except the flags byte -- bit0 reversed, bit1
+// mirror, any other bit set is rejected outright (an unknown flag must
+// never be silently ignored). Never reinterprets a schema-3 record's own
+// strict 0/1 reversed byte as flags; schema 3 keeps reading through
+// decodeSegment() above, unchanged.
+bool decodeSegmentV4(const uint8_t *&p, comp::SegmentSpec &s, uint16_t canvas_width, uint16_t canvas_height)
+{
+    s = comp::SegmentSpec{};
+    const uint32_t a = static_cast<uint32_t>(get(p, 4));
+    const uint16_t field1 = static_cast<uint16_t>(get(p, 2));
+    const uint16_t field2 = static_cast<uint16_t>(get(p, 2));
+    s.id = a;
+    s.effect_id = get(p, 1); s.brightness = get(p, 1);
+    s.blend = static_cast<comp::BlendMode>(get(p, 1)); s.opacity = get(p, 1);
+    const uint8_t flags = get(p, 1);
+    s.reversed = (flags & 1U) != 0; s.mirror = (flags & 2U) != 0;
+    s.state = static_cast<comp::SegmentState>(get(p, 1));
+    s.restart_generation = get(p, 4);
+    for (auto &color : s.params.color) {
+        color.r = get(p, 1); color.g = get(p, 1); color.b = get(p, 1);
+    }
+    s.params.speed = get(p, 1); s.params.intensity = get(p, 1);
+    s.params.palette = get(p, 1); s.params.color_source = static_cast<fx::FxColorSource>(get(p, 1));
+    for (uint8_t &custom : s.params.custom) { custom = get(p, 1); }
+    const uint8_t is2D = get(p, 1);
+    const uint16_t w = static_cast<uint16_t>(get(p, 2));
+    const uint16_t h = static_cast<uint16_t>(get(p, 2));
+    if (is2D > 1 || flags > 3U) { return false; } // flags > 3: an unknown bit set -- reject, never ignore
     s.is2D = is2D != 0;
     if (s.is2D) {
         s.x = field1; s.y = field2; s.w = w; s.h = h;
@@ -161,7 +217,7 @@ esp_err_t encodeScene(const comp::AtScene &scene, const Topology &topology, cons
     record.size = header_bytes + scene.count * kSceneSegmentBytesV3 + 4;
     if (record.size > sizeof(record.bytes)) { return ESP_ERR_INVALID_SIZE; } // defensive; cannot happen
     uint8_t *p = record.bytes;
-    put(p, kMagic, 4); put(p, kSchemaV3, 2); put(p, record.size, 2); put(p, sequence, 8);
+    put(p, kMagic, 4); put(p, kSchemaV4, 2); put(p, record.size, 2); put(p, sequence, 8);
     put(p, topology.count, 1);
     for (uint8_t i = 0; i < topology.count; ++i) {
         const OutputSpec &o = topology.outputs[i];
@@ -217,7 +273,10 @@ static esp_err_t decodeSceneChecked(const SceneRecord &record, const Topology *c
             const uint8_t order = static_cast<uint8_t>(get(p, 1));
             record_topology.outputs[i] = OutputSpec{static_cast<int16_t>(pin), count, order};
         }
-    } else if (schema == kSchemaV3) {
+    } else if (schema == kSchemaV3 || schema == kSchemaV4) {
+        // Schema 3 and 4 share an IDENTICAL header layout (topology tuples,
+        // then the map descriptor) -- only their own per-segment flags/
+        // reversed byte differs, handled below, never here.
         if (record.size < 17 + 4) { return ESP_ERR_INVALID_SIZE; }
         const uint8_t output_count = static_cast<uint8_t>(get(p, 1));
         if (output_count == 0 || output_count > kMaxOutputs) { return ESP_ERR_INVALID_ARG; }
@@ -250,7 +309,8 @@ static esp_err_t decodeSceneChecked(const SceneRecord &record, const Topology *c
         return ESP_ERR_INVALID_ARG;
     }
     const size_t header_bytes = static_cast<size_t>(p - record.bytes);
-    const size_t segment_bytes = (schema == kSchemaV3) ? kSceneSegmentBytesV3 : kSceneSegmentBytes;
+    const size_t segment_bytes =
+        (schema == kSchemaV3 || schema == kSchemaV4) ? kSceneSegmentBytesV3 : kSceneSegmentBytes;
     if (record.size != header_bytes + count * segment_bytes + 4) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -263,8 +323,9 @@ static esp_err_t decodeSceneChecked(const SceneRecord &record, const Topology *c
     bool has_2d = false;
     for (uint8_t i = 0; i < count; ++i) {
         comp::SegmentSpec spec;
-        const bool ok = (schema == kSchemaV3) ? decodeSegment(p, spec, canvas_width, canvas_height)
-                                              : decodeSegmentV2(p, spec, canvas_width);
+        const bool ok = (schema == kSchemaV4)   ? decodeSegmentV4(p, spec, canvas_width, canvas_height)
+                        : (schema == kSchemaV3) ? decodeSegment(p, spec, canvas_width, canvas_height)
+                                                : decodeSegmentV2(p, spec, canvas_width);
         if (!ok) { return ESP_ERR_INVALID_ARG; }
         has_2d = has_2d || spec.is2D;
         for (uint8_t j = 0; j < i; ++j) {
@@ -281,7 +342,9 @@ static esp_err_t decodeSceneChecked(const SceneRecord &record, const Topology *c
     }
     p = record.bytes + header_bytes;
     for (uint8_t i = 0; i < count; ++i) {
-        if (schema == kSchemaV3) {
+        if (schema == kSchemaV4) {
+            (void)decodeSegmentV4(p, scene.segments[i], canvas_width, canvas_height);
+        } else if (schema == kSchemaV3) {
             (void)decodeSegment(p, scene.segments[i], canvas_width, canvas_height);
         } else {
             (void)decodeSegmentV2(p, scene.segments[i], canvas_width);

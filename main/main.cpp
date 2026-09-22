@@ -183,7 +183,7 @@ extern "C" void app_main(void)
 
     ESP_LOGI("PIXELS_AT",
              "ready: Composer=%s FX=%s Pixels=%s outputs=%u total=%u canvas=%ux%u commands=%u/%u "
-             "persistence=scene-v3",
+             "persistence=scene-v4",
              ESP_PIXELS_COMPOSER_VERSION, ESP_PIXELS_FX_VERSION, ESP_PIXELS_VERSION,
              static_cast<unsigned>(topology.count), static_cast<unsigned>(topology.totalPixels()),
              static_cast<unsigned>(comp.canvasWidth()), static_cast<unsigned>(comp.canvasHeight()),

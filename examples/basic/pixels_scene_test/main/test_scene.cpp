@@ -42,7 +42,7 @@ void codecTests()
         auto &s = scene.segments[i];
         s.id = 100 + i; s.start = i; s.stop = i + 1; s.effect_id = i % 4;
         s.brightness = 200 - i; s.blend = static_cast<comp::BlendMode>(i % 3);
-        s.opacity = 71 + i; s.reversed = (i % 2) != 0;
+        s.opacity = 71 + i; s.reversed = (i % 2) != 0; s.mirror = (i % 3) == 0; // flags byte covers all 4 combos
         s.state = static_cast<comp::SegmentState>(i % 3); s.restart_generation = 0xffff0000U + i;
         for (unsigned c = 0; c < 3; ++c) { s.params.color[c] = {uint8_t(i+c), uint8_t(53+i+c), uint8_t(201-i-c)}; }
         s.params.speed = i + 7; s.params.intensity = 231 - i; s.params.palette = i % 10;
@@ -50,22 +50,60 @@ void codecTests()
         s.params.custom[0] = i; s.params.custom[1] = 65 + i; s.params.custom[2] = 250 - i;
     }
     constexpr uint64_t generation = 0x123456789abcdef0ULL;
-    // Schema 3, one output, identity map: magic(4)+schema(2)+size(2)+
-    // generation(8)+output_count(1)+1*(pin2+count2+order1=5)+map(width2+
-    // height2+first2+wiring1=7)+scene.count(1)+brightness(1)+paused(1)+
-    // reserved(2)+fx_catalog(4) = 38.
+    // Schema 4 (Task 7G), one output, identity map: magic(4)+schema(2)+
+    // size(2)+generation(8)+output_count(1)+1*(pin2+count2+order1=5)+
+    // map(width2+height2+first2+wiring1=7)+scene.count(1)+brightness(1)+
+    // paused(1)+reserved(2)+fx_catalog(4) = 38 -- byte-identical to schema
+    // 3's own header (kSceneSegmentBytesV3 covers both), only the per-
+    // segment flags byte's own MEANING differs; see scene_codec.hpp's own
+    // doc.
     constexpr size_t kHeaderBytes = 38;
     CHECK(bench::encodeScene(scene, topology, identity, generation, record) == ESP_OK);
     CHECK(record.size == kHeaderBytes + comp::MAX_SEGMENTS * bench::kSceneSegmentBytesV3 + 4);
     CHECK(record.bytes[0] == 'S' && record.bytes[1] == 'C' && record.bytes[2] == 'N' && record.bytes[3] == '1');
+    CHECK(record.bytes[4] == 4 && record.bytes[5] == 0); // schema field: encodeScene() now writes schema 4
     CHECK(record.bytes[8] == 0xf0 && record.bytes[15] == 0x12);
     // Segment 0's own id(4)/start(2)/stop(2) LSBs, right after the header.
     CHECK(record.bytes[kHeaderBytes] == 100 && record.bytes[kHeaderBytes + 4] == 0 &&
           record.bytes[kHeaderBytes + 6] == 1);
     uint64_t found = 0;
     CHECK(bench::decodeScene(record, topology, identity, decoded, found) == ESP_OK && found == generation);
+    // Task 7G: mirror survives the round trip exactly (i%3==0 above), for
+    // every one of the 32 segments, not just one sampled byte.
+    for (unsigned i = 0; i < comp::MAX_SEGMENTS; ++i) {
+        CHECK(decoded.segments[i].mirror == ((i % 3) == 0));
+        CHECK(decoded.segments[i].reversed == ((i % 2) != 0)); // unaffected by the flags-byte reinterpretation
+    }
     CHECK(bench::encodeScene(decoded, topology, identity, found, reencoded) == ESP_OK);
     CHECK(record.size == reencoded.size && std::memcmp(record.bytes, reencoded.bytes, record.size) == 0);
+
+    // Task 7G: the SAME bytes, with ONLY the schema field changed to 3,
+    // prove schema 3 keeps its own strict 0/1 reversed-byte validation --
+    // never reinterpreting a schema-4 mirror bit as a valid schema-3 value.
+    // Segment 0 itself (i=0: reversed=false, mirror=true) has flags==2,
+    // deliberately not a valid strict-0/1 schema-3 byte.
+    reencoded = record;
+    reencoded.bytes[4] = 3; // schema 3, same bytes otherwise
+    renewCrc(reencoded);
+    decoded.count = 7; found = 123;
+    CHECK(bench::decodeScene(reencoded, topology, identity, decoded, found) == ESP_ERR_INVALID_ARG &&
+          decoded.count == 7 && found == 123); // segment 0's own flags==2 is not a valid schema-3 reversed byte
+    // Strip bit1 (mirror) from every segment's own flags byte so the SAME
+    // record becomes a genuinely valid schema-3 one (strict 0/1 reversed,
+    // mirror always false) -- proves schema 3 decodes correctly on its own
+    // terms too, not just that schema 4's flags byte is rejected by it.
+    for (unsigned i = 0; i < comp::MAX_SEGMENTS; ++i) {
+        reencoded.bytes[kHeaderBytes + i * bench::kSceneSegmentBytesV3 + 12] &= 1U;
+    }
+    renewCrc(reencoded);
+    decoded = comp::AtScene{};
+    found = 0;
+    CHECK(bench::decodeScene(reencoded, topology, identity, decoded, found) == ESP_OK && found == generation);
+    for (unsigned i = 0; i < comp::MAX_SEGMENTS; ++i) {
+        CHECK(!decoded.segments[i].mirror);                       // schema 3 never sets mirror
+        CHECK(decoded.segments[i].reversed == ((i % 2) != 0));    // the original bit0 value survived the strip
+    }
+
     // A single damaged byte anywhere, including headers/CRC, is rejected transactionally.
     for (size_t i = 0; i < record.size; ++i) {
         record.bytes[i] ^= 0x80;
@@ -82,8 +120,9 @@ void codecTests()
     record.size = full_size;
     // Semantically invalid but CRC-valid records: header fields (schema,
     // output_count, pin, count, map wiring, scene.count, paused, reserved)
-    // and segment fields (effect_id, blend, state, palette, color_source,
-    // is2D).
+    // and segment fields (effect_id, blend, flags [255 has bits beyond
+    // reversed/mirror set -- Task 7G's own "reject unknown flags bits"
+    // path], state, palette, color_source, is2D).
     const size_t offsets[] = {4, 16, 17, 18, 20, 21, 28, 29, 31, 33,
                               kHeaderBytes + 8, kHeaderBytes + 10, kHeaderBytes + 12, kHeaderBytes + 13,
                               kHeaderBytes + 29, kHeaderBytes + 30, kHeaderBytes + 34};
@@ -103,6 +142,23 @@ void codecTests()
     scene.segments[0].reversed = true; // 2D segments must never carry reversed==true
     CHECK(bench::encodeScene(scene, topology, identity, 1, reencoded) != ESP_OK);
     scene.segments[0].reversed = false;
+    scene.segments[0].mirror = true; // Task 7G: nor mirror==true, even at h==1
+    CHECK(bench::encodeScene(scene, topology, identity, 1, reencoded) != ESP_OK);
+    scene.segments[0].mirror = false;
+    // Task 7G: a raw, hand-crafted CRC-valid record with is2D==1 AND the
+    // mirror bit set (a combination no legitimate encoder ever produces,
+    // since encodeScene() itself already rejects it above) must still be
+    // rejected on DECODE, before any output is mutated -- valid()'s own
+    // is2D branch runs inside decodeSegmentV4() exactly as it does inside
+    // encodeScene()'s own validation, so a corrupted/foreign record can
+    // never sneak a mirrored-2D segment through either path.
+    reencoded = record;
+    reencoded.bytes[kHeaderBytes + 34] = 1;      // segment 0: is2D = true
+    reencoded.bytes[kHeaderBytes + 12] |= 2U;    // segment 0: flags bit1 (mirror) set
+    renewCrc(reencoded);
+    decoded.count = 7; found = 123;
+    CHECK(bench::decodeScene(reencoded, topology, identity, decoded, found) != ESP_OK && decoded.count == 7 &&
+          found == 123);
     scene.segments[0].is2D = false; scene.segments[0].stop = topology.totalPixels() + 1;
     CHECK(bench::encodeScene(scene, topology, identity, 1, reencoded) != ESP_OK);
     scene.count = 0;
@@ -313,6 +369,7 @@ void legacySchemaTests()
               decoded->segments[0].start == 3 && decoded->segments[0].stop == 4);
         CHECK(decoded->segments[0].params.color[0].r == 255 &&
               decoded->segments[0].params.custom[2] == 33);
+        CHECK(!decoded->segments[0].mirror); // Task 7G: schemas 1/2 predate the field entirely -- always false
         CHECK(bench::decodeScene(record, topology, MapConfig{5,10,0,MapWiring::Progressive},
                                 *decoded, generation) == ESP_OK);
         decoded->count = 9; generation = 99;

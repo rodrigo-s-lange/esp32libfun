@@ -23,7 +23,7 @@ setters take effect only after `AT+SEGPUB`. `PIXELS_PRESETS` (unreleased)
 is a second, application-owned AT library for named
 presets -- see its own section below.
 
-## Automatic configuration retention (schemas 1/2 read, schema 3 written)
+## Automatic configuration retention (schemas 1/2/3 read, schema 4 written)
 
 - A confirmed `AT+SEGPUB` saves the entire ordered scene. `AT+COMPAUSE=0|1`
   saves global pause with the last confirmed segments, never intervening staged
@@ -44,9 +44,10 @@ presets -- see its own section below.
 - Records use explicit little-endian fields, schema/catalog versions, a 64-bit
   generation and CRC32, not raw C++ struct bytes. Schema 1 (single output
   only, fixed 32-byte header) is still read on boot/recall, never written
-  again. Schema 2 remains readable too. Every new save writes schema 3
+  again. Schemas 2 and 3 remain readable too. Every new save writes schema 4
   (variable-size header, 38 bytes at one output, up to 43 at two outputs).
-  See the 2D section for the full recalculated maximum record size.
+  Schema 4 adds mirror in the existing flags byte, keeping record sizes
+  unchanged. See the mirror section for its compatibility rules.
 - Namespace `pixels_scene`, keys `scene_a`/`scene_b` in the existing NVS
   partition. Save targets the inactive key, commits and reads back; it does not
   overwrite the last valid key. Boot selects the newest valid COMPATIBLE
@@ -89,7 +90,7 @@ Composer/FX checkpoints are not accidentally compiled alongside the new line.
 
 | Component | Checkout | Validated revision |
 |---|---|---|
-| Composer and its adapter | `../esp_pixels_composer` | `5dc3a8ebec0e85136d28c07914e6030d25b2c370` on `feature/at-scene-persistence`: two physical outputs, persistence, AT composition controls, confirmed-scene export/load and `AT+SEGSET2D` (v0.2.1); local, unreleased checkpoint |
+| Composer and its adapter | `../esp_pixels_composer` | `c2c3e542ce00b60c9ae4c7d224244676bb8a2de1` on `feature/at-scene-persistence`: two outputs, 1D/2D composition, scene persistence and symmetric mirror via `AT+SEGMIRROR` (v0.2.2); local, unreleased checkpoint |
 | FX | `../esp_pixels_fx` | `4e977137950a30c81f4151b411b1541fba85adb4` on `integration/v0.2.0`, including validated `XYGradient` (v0.2.1); local, unreleased checkpoint |
 | Pixels transport | `framework/libs/esp_pixels` | `5d7db6b7ce17935ec5213e241c66055787726564`, with existing local README/AT changes preserved |
 | Core | this repository's `framework/core` | current application checkout |
@@ -825,6 +826,192 @@ gradients, blackout/preset/reboot recovery and serpentine blue column with
 GPIO17 black. The 2D delivery is checkpointed locally after that confirmation;
 no push or tag was performed. This validates a virtual canvas on a straight
 strip, not an assembled matrix panel.
+## Symmetric 1D mirror (PIXELS_COMPOSER `AT+SEGMIRROR`) — validated locally, unreleased
+
+Claude implemented this brief (`docs/pixels-mirror-task.md`) against app
+baseline `d6e5665845f0df580fd6e1a41680ea6690f830a3` and Composer baseline
+`5dc3a8ebec0e85136d28c07914e6030d25b2c370`. Codex completed review and
+hardware execution on WROOM/COM6. Rodrigo confirmed even50/odd49 Rainbow,
+reverse interaction, mirrored Sinelon crossing GPIO16/17, explicit blackout,
+named preset recall and reboot recovery. This remains a local, unreleased
+delivery; see execution evidence and the application stack fix below.
+
+A new, explicit segment-level `mirror` boolean (`Segment`/`SegmentSpec`,
+default `false`, independent of `reversed`/effect params) makes an existing
+1D destination span `[start, stop)` (width `N`) symmetric: the effect itself
+sees a narrower SOURCE `Surface` of width `M = ceil(N/2)`; composition folds
+each destination offset `d` onto source index `min(d, N-1-d)`, then applies
+`reversed` to that already-folded index -- reverse acts AFTER the fold, not
+before it. `mirror == false` reduces identically to the existing `reversed`
+mapping (`M == N`, `source = d`). See `esp_pixels_composer`'s own README
+(`Added in v0.2.2`) for the full composition/carry-forward contract, byte
+layout, and `AT+SEGMIRROR=<id>,<0|1>` command. No new effect, no HAL change,
+no new output/map subsystem, no 2D mirroring -- purely Composer's own
+segment composition plus this application's schema-4 durable encoding.
+
+### Persistence/compatibility
+
+Scene/preset records evolve to schema 4 (`main/scene_codec.*`): schema 3's
+own exact 39-byte-per-segment layout and 38-byte header are kept BYTE-
+IDENTICAL -- only the meaning of ONE already-existing byte changes, from a
+strict 0/1 `reversed` value to a 2-bit flags byte (bit0 `reversed`, bit1
+`mirror`). An unknown bit (`flags > 3`) is rejected outright, never silently
+ignored. Schema 1/2/3 records are read unchanged, through their OWN
+dedicated, untouched decode functions, always implying `mirror = false` --
+schema 3 in particular keeps its own strict 0/1 validation: a byte that is a
+valid schema-4 mirror-only flag (`2`) is correctly REJECTED when the SAME
+bytes are read back as schema 3 (proven directly in `test_scene.cpp`'s own
+`codecTests()`, byte-for-byte, not by inference). `encodeScene()` never
+produces schema 1/2/3 again, matching every prior schema bump's own
+discipline. `mirror` is rejected outright for any 2D segment, including
+`h == 1`, both at encode time (`valid()`) and independently at decode time
+(a hand-crafted, otherwise-CRC-valid record with `is2D` and the mirror bit
+both set is rejected before any output mutation). No record is bulk-
+rewritten as a migration; NVS is never erased.
+
+### Recalculated maximum record size and partition fit — unchanged
+
+Schema 4 is deliberately size-NEUTRAL: same `kSceneSegmentBytesV3` (39),
+same `kSceneHeaderBytesV3Max` (38, one output/identity map), same
+`kSceneRecordBytes`/`kPresetRecordBytes`. Verified by direct arithmetic
+(`kMaxOutputs==2`, `MAX_SEGMENTS==32`) AND by the existing maximum-size
+round-trip tests (`test_scene.cpp`/`test_presets.cpp`), which assert the
+exact byte count and would fail immediately if the layout had shifted:
+
+| Record | Schema 3 max | Schema 4 max (this delivery) |
+|---|---|---|
+| Scene (`kSceneRecordBytes`) | 1295 bytes | **1295 bytes (unchanged)** |
+| Preset (`kPresetRecordBytes`) | 1348 bytes | **1348 bytes (unchanged)** |
+
+The existing 24 KiB `nvs` (map) and 320 KiB `presets` partitions are
+therefore unaffected by this delivery -- the prior delivery's own NVS-entry
+accounting (`ceil(1348/32)==43` data entries/record, 47 with index/chunk
+overhead, 9400 entries at 100 positions x2 A/B, against 10080 in 80 pages)
+still applies unchanged, since nothing about the on-disk size moved.
+`preset_codec.*`'s own wrapper format (`kSchema=1`, unrelated to the inner
+scene's own schema number) needed no code change at all -- it already
+threads the inner scene's bytes through opaquely; only a stale doc comment
+referencing schema-2-era sizing was corrected.
+
+### Test coverage added
+
+- `esp_pixels_composer`'s own `ci_harness` (`test/test_composer.cpp`): a new
+  `FX_TEST_WIDTH` fixture asserting the exact SOURCE Surface width
+  (`M = ceil(N/2)`); a byte-exact reproduction of the task's own N=1/2/5/6
+  worked-example table (both `Mirror` and `Mirror + reverse` columns) plus
+  mirror-off parity; odd-segment center-composed-exactly-once; a history-
+  reading effect proving the retained buffer stays SOURCE-sized and
+  survives across calls; a nonzero-start segment crossing two `FakeSink`
+  outputs through a real, hole-containing ledmap; mirrored-2D rejection at
+  both `h==1` and genuinely 2D, with existing 2D coverage confirmed
+  unaffected; exactly-one-restart on a mirror-only toggle (including at
+  `N==2`); `addSegment()`'s new trailing `mirror` parameter's backward
+  compatibility; and a mirrored `applyConfig()` allocation failure leaving a
+  live scene untouched.
+- `test/test_composer_at.cpp`: `AT+SEGMIRROR` stage/query(via
+  `exportConfirmedScene()`)/publish, every documented invalid-input
+  rejection, rejection when staged 2D, `AT+SEGSET` preserving it on
+  re-stage, `AT+SEGSET2D` clearing it (and `reversed`) on shape conversion,
+  a real `AT+SEGPUB` round trip proving the actual fold through the AT path,
+  and `attachAtPersistence()` restoring it on attach. Registration count
+  updated 22 -> 23 everywhere it is asserted.
+- `pixels_scene_test`'s own `test_scene.cpp`/`test_presets.cpp`: the
+  existing 32-segment maximum-size round trips (scene AND preset) now vary
+  `mirror` across all four flag combinations and assert it survives byte-
+  exact; the schema-4 magic/schema-field bytes are checked directly; a
+  dedicated block re-reads the SAME schema-4 bytes as schema 3 to prove
+  strict 0/1 rejection of a mirror-only flags byte, then strips the mirror
+  bit to prove schema 3 still decodes correctly on its own terms; a raw
+  mirrored-2D record is rejected on decode before mutation; and
+  `legacySchemaTests()`'s existing schema-1/2 fixtures now explicitly assert
+  `mirror == false`. No existing test was removed, weakened, or had its
+  count assertion lowered.
+
+Static DRAM in `pixels_scene_test`: the prior delivery reported 8248 bytes
+free (172488/180736 used); this delivery's substantial new registered
+coverage (across all four files above, all linked into this one image)
+brings that to **2224 bytes free (178512/180736 used, 98.77%)** -- a real,
+build-verified, still-positive margin, not a leak: one avoidable ~3 KB
+static `AtScene` pair was converted to heap (`std::nothrow`, matching this
+suite's own established pattern) once discovered during the build, and no
+coverage was dropped to fit. Final binary sizes: application 261280 bytes;
+`pixels_scene_test` 575792 bytes after the fixes below; independent
+adapter 187088 bytes. The expanded scene runner executed 6588 checks and the
+adapter 172 on WROOM/COM6: **6760 checks, zero failures**, retaining the
+6352-check baseline. Runtime allocation gates also passed.
+
+The first execution exposed six failed assertions in two test setups, fixed
+without changing Mirror production code: accepted 2D configurations needed a
+render/adoption before checking the live count, and the 10000-pixel allocation
+failure fixture needed a sink accepting the whole submission while retaining
+only its first eight pixels. Four adoption/reclaim assertions were added.
+The application boot banner was corrected to report scene-v4.
+Logs/backups: `build-wroom-rmt-safe/bench-mirror-20260921/`.
+
+A real stack overflow was then caught during legacy preset recall. Although
+the handlers' scratch scenes were static, assigning `AtScene{}` created a
+large temporary on the 4096-byte AT stack. The redundant whole-scene resets
+were removed from preset save/load: export/decode already fill every used
+segment and all scene globals, and failure never consumes the scratch result.
+Compiled handler stack frames are now 48 bytes. Core stack size and Mirror
+production code remain unchanged. The expanded suite passed again afterward.
+All 100 original presets then passed position/color recall (203 serial
+checks). A maximum-size 32-segment preset also passed real schema-4 save,
+recall and reboot. The original 100-preset partition was restored again and
+verified against its backup. Final state: IDENTITY, Pos100, LED34 red,
+brightness96, GPIO17 black. Rodrigo confirmed the Mirror visual sequence.
+
+### Bench sequence (executed and visually confirmed)
+
+Uses the existing Rainbow/Sinelon effects and the current two-output
+topology (GPIO16/50, GPIO17/12) -- no new effect needed. **Use a BACKED-UP
+EXISTING position (e.g. Pos100) for any temporary staging, never a 101st
+name; restore all 100 originals and finish on Pos100**, exactly like the
+prior two deliveries.
+
+1. Verify backups of the current NVS/preset partitions before changes. Flash
+   the application and the expanded `pixels_scene_test`; run both; restore
+   the application afterward. Run the independent adapter suite too; the
+   combined suite counts must retain at least the 6352 baseline checks,
+   with zero failures.
+2. `AT+SEGCLR`, `AT+SEGSET=1,0,50,2` (Rainbow, `effect_id=2`, GPIO16's own
+   50-pixel span), `AT+SEGPUB` -- baseline, mirror off. Confirm it fills the
+   strip normally.
+3. `AT+SEGSET=1,0,50,2`, `AT+SEGMIRROR=1,1`, `AT+SEGPUB` -- even N=50 span,
+   `M=25`: the first and last 25 physical LEDs must show the SAME symmetric
+   Rainbow pattern folded about the midpoint (LED 25/26), not the plain
+   50-wide ramp. This is the "even50" demonstration.
+4. `AT+SEGSET=1,0,49,2`, `AT+SEGMIRROR=1,1`, `AT+SEGPUB` -- odd N=49 span,
+   `M=25`: LED 25 (the exact center) must show a single unrepeated color,
+   with symmetric pairs on either side -- the "odd49" demonstration. Toggle
+   `AT+SEGMIRROR=1,0` and republish to confirm the segment falls back to the
+   plain (non-symmetric) 49-wide ramp, byte-different from step 4's own
+   frame.
+5. Reverse interaction: `AT+SEGSET=1,0,49,2,1` (start=0, stop=49, Rainbow
+   `effect_id=2`, `reversed=1` as `AT+SEGSET`'s own trailing positional
+   argument), `AT+SEGMIRROR=1,1`, `AT+SEGPUB`. The visible pattern must
+   still be symmetric about LED 25 but with the fold-then-reverse order the
+   task doc specifies (verified byte-exact in `test_composer.cpp`'s own
+   worked-example gate) -- distinguishable from step 4's own (non-reversed)
+   frame wherever Rainbow's own per-index color actually varies.
+6. A segment crossing both physical outputs: `AT+SEGSET=2,40,60,1`
+   (Sinelon, `effect_id=1`, spanning GPIO16's own tail and GPIO17's own head
+   at the identity boundary index 50), `AT+SEGMIRROR=2,1`, `AT+SEGPUB`.
+   Confirm Sinelon's own moving dot still animates correctly and
+   symmetrically across the boundary over a few frames (proving the fold
+   happens in canvas space, before ledmap/output routing, and that
+   `FakeSink`-proven history-buffer isolation holds on real hardware too).
+7. Preset recall: save the current mirrored scene to the BACKED-UP Pos100,
+   explicitly disable/publish its segments to black out the scene, then
+   `AT+PRESETLOAD=Pos100` to prove named recall. Separately `AT+RESET` and
+   verify recovery of the saved current scene with mirror intact. Animation
+   time restarts; compare geometry, symmetry and settings rather than phase.
+8. Restore all 100 original presets from backup, recall Pos001..Pos100 with
+   geometry/color checks, and finish on Pos100 -- IDENTITY map, LED34 red,
+   brightness 96, GPIO17 black, exactly as the task's own baseline
+   describes. Keep serial captures throughout; builds and physical
+   observation are recorded separately.
+
 ## Known gaps
 
 Review on 2026-09-14 fixed incompatible presets being cataloged as free,
@@ -852,10 +1039,9 @@ effects.
   hardware gates passed and visually confirmed). 2D canvas/ledmap is now
   delivered locally as well (unreleased, hardware checks passed and the
   virtual 5x10 demonstration visually confirmed -- see the section above).
-- No symmetric (palindromic) mirror effect exists. The existing per-segment
-  `reversed` flag only reverses which physical index a segment's local
-  position `i` maps to; it is a local index flip, not the requested
-  symmetric-mirror effect, and must not be presented as implementing it.
+- Symmetric 1D mirror passed hardware execution and visual confirmation.
+  It is distinct from the existing `reversed` flag; see the mirror section
+  above. Reflection of 2D segments is outside this delivery.
 - No AT setters exist for the three per-segment custom effect parameters;
   they are retained by persistence only when already present in a
   programmatically-staged scene.

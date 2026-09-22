@@ -232,3 +232,58 @@ execution passed: 6180 checks, zero failures, including the allocation gates.
 The independent adapter runner passed 172 additional checks. Build log:
 `build/2d-review-build.log`; serial logs in the root application's
 `build-wroom-rmt-safe/bench-2d-20260915/`. No existing suite was removed.
+
+### Symmetric 1D mirror — built, not yet executed on WROOM (21/09/26)
+
+`scene_codec.*`/`preset_codec.hpp` gained schema 4 (see `main/README.md`'s
+own "Symmetric 1D mirror" section for the full contract); this image was
+rebuilt against them. `preset_store.*`/`scene_store.*`/`main.cpp` needed no
+changes (mirror adds no new store or boot-sequence concept).
+
+- `test_scene.cpp`'s `codecTests()` now varies `mirror` (`i % 3 == 0`)
+  across the existing 32-segment maximum-size round trip, alongside
+  `reversed` (`i % 2 != 0`) -- every one of the four flags-byte combinations
+  appears at least once. Beyond the existing byte-exact round-trip/fuzz/
+  size-boundary checks (now implicitly schema-4, and re-asserted per-segment
+  for `mirror`), new checks confirm: the schema field is genuinely `4`; the
+  SAME bytes, read back with only the schema field changed to `3`, are
+  rejected (a mirror-only flags byte, `2`, is not a valid strict-0/1 schema-3
+  value) -- then, with the mirror bit stripped from every segment, the same
+  bytes decode correctly AS schema 3, with `mirror` false throughout and
+  `reversed` intact; `encodeScene()` rejects a 2D segment with `mirror=true`
+  the same way it already rejects one with `reversed=true`; and a raw,
+  hand-crafted record with `is2D` and the mirror bit both set is rejected on
+  DECODE before any output mutation. `legacySchemaTests()`'s existing
+  schema-1/2 raw-byte fixtures now explicitly assert `mirror == false`.
+- `test_presets.cpp`'s own maximum-size preset round trip (`kPresetRecordBytes`,
+  32 segments, two outputs) gained the same `mirror` variation and a
+  per-segment survival check through the full preset (opaque-blob) round
+  trip -- `record.size == bench::kPresetRecordBytes` passing unchanged
+  confirms the 1348-byte maximum really did stay size-neutral, not just by
+  assertion in `main/README.md`.
+- `esp_pixels_composer`'s own `ci_harness` (`test_composer.cpp`/
+  `test_composer_at.cpp`, linked into THIS image too) gained the full
+  Composer-side mirror gate set: worked-example table, source-width probe,
+  center-composed-once, history-buffer isolation, boundary-crossing ledmap,
+  mirrored-2D rejection, exactly-one-restart, and the full `AT+SEGMIRROR`
+  stage/publish/persistence set -- see `esp_pixels_composer/test/README.md`
+  for the exact list.
+
+This delivery's own link-time DRAM margin dropped further, from the prior
+8248-byte free baseline to **2224 bytes free (178512/180736 used, 98.77%)**
+-- a real, build-verified, still-positive margin. One large static
+`AtScene` pair (in a single new AT persistence gate) was converted to heap
+(`std::nothrow`) once discovered during this delivery's own build, matching
+this suite's already-established pattern for large scratch objects; no
+coverage was dropped to fit. **Executed on WROOM: 6588 checks, zero failures.**
+Two test setups were corrected after the first execution: wait for render
+adoption before checking accepted 2D configurations, and capture a prefix of
+the large sink submission in the allocation-failure test. Production Mirror
+code did not change. The independent adapter added 172 passing checks.
+Logs: `build-wroom-rmt-safe/bench-mirror-20260921/` in the application root.
+The application preset handlers also dropped redundant whole-scene temporary
+resets after a real AT-task stack overflow during legacy preset recall. The
+suite passed again with that fix; final binary size: 575792 bytes.
+Any future addition to this specific binary
+should re-measure this margin before assuming it still fits; there is
+markedly less headroom left than the previous two deliveries reported.
