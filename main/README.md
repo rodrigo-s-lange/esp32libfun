@@ -1012,6 +1012,216 @@ prior two deliveries.
    describes. Keep serial captures throughout; builds and physical
    observation are recorded separately.
 
+## Custom effect parameters via AT (`AT+SEGCUSTOM1/2/3`)
+
+### Codex hardware review — 2026-09-22
+
+The expanded scene runner passed **7088 checks**, and the independent adapter
+runner passed **172**: **7260 checks, zero failures**, on WROOM/COM6. Build
+sizes: application 262272 B, scene runner 592352 B, adapter 187312 B. The
+scene runner retains 2208 B of static DRAM headroom (98.78% used).
+
+The first hardware run exposed invalid new codec fixtures: cycling through
+IDs 0..5 selected 2D-only XYGradient for 1D segments. The codec correctly
+rejected them; the test then computed a CRC over an empty record and panicked.
+Both maximum-size fixtures now use the five 1D-capable IDs, including Stripes,
+and stop after an initial encode failure. Production code was unchanged.
+The Stripes boundary gate also now renders with all three custom bytes at
+255, checking the transition from the final primary cell into the secondary
+band. All previous gates remain registered.
+
+Logs and fresh verified backups:
+`build-wroom-rmt-safe/bench-custom-20260922/`. The successful scene capture
+contains repeated `checks=7088 RESULT=ALL_PASS`; the capture tool initially
+reported a missing expectation because its regex omitted the colon after
+`SCENE_TEST`. The stored log was checked with the corrected pattern.
+
+Serial bench passed 22 control/Mirror/reverse checks and 18 crossing/recall/
+reboot checks, including the actual labels and all three custom values after
+recovery. Fresh NVS/preset backups matched again after the suites. After the
+visual sequence, both original partitions were restored and digest-verified;
+all 100 original presets passed recall/geometry/color checks (203 commands).
+Seven final queries confirmed IDENTITY, GPIO16/50 plus GPIO17/12, Pos100,
+LED34 red, brightness96 and running. Rodrigo confirmed the complete visual
+sequence after a slower replay in ten announced 20-second stages, including
+green bands crossing the two outputs. Both original partitions were restored
+and digest-verified again after that replay; seven final queries passed and
+Rodrigo confirmed the final LED34-red state. Replay captures: `replay/` under
+the same bench directory.
+
+### Implementation handoff (before hardware execution)
+
+Claude implemented this brief (`docs/pixels-custom-params-task.md`) against
+app baseline `b6d78042d5992d157811437e3822a6ba02fe84c1` and Composer baseline
+`c2c3e542ce00b60c9ae4c7d224244676bb8a2de1`, both unchanged (all edits below
+are uncommitted working-tree changes, left for Codex's own review/bench/
+checkpoint). **Compiled and verified via five clean builds (application,
+Composer's own `ci_harness`, `esp_pixels_fx`'s own `ci_harness`, the expanded
+`pixels_scene_test`, and the independent `pixels_adapter_test` runner); none
+of this has been executed on real hardware yet.**
+
+`FxParams::custom[3]`/`FX_USES_CUSTOM1/2/3`/`FxInfo::custom_labels[3]`
+already existed in `esp_pixels_fx` before this delivery, but no effect
+consumed them and no AT command exposed them. This delivery adds both: three
+new Composer sidecar setters (`AT+SEGCUSTOM1/2/3`) and `Stripes`
+(`esp_pixels_fx` v0.2.2, effect id 5), a static two-color 1D band pattern
+that is the first shipped effect to actually declare the CUSTOM flags. See
+`esp_pixels_composer`'s own README (`Added in v0.2.3`) for the full AT
+contract and `esp_pixels_fx`'s own README (`v0.2.2`) for the effect's exact
+formula. No HAL/transport or Composer rendering-engine change; the only
+application-level change is test integration (the persistence layer already
+carried all three custom bytes through every scene schema before this task
+-- verified against the actual code, not assumed, see below).
+
+### Persistence — no code change needed
+
+`main/scene_codec.cpp`'s `encodeSegment()`/`decodeSegment()`/
+`decodeSegmentV4()`/the schema-1/2 reader already loop over
+`s.params.custom` unconditionally (`for (uint8_t custom : s.params.custom)
+{ put(p, custom, 1); }` and its decode-side mirror) -- these three bytes
+have been part of every segment record since before schema versioning even
+began, entirely independent of which effect id a segment names. Adding
+effect id 5 needed no schema bump: the byte layout and existing effect
+meanings are unchanged. The codec DOES validate IDs through `fx::describe()`
+and checks effect dimensions/work requirements in `valid()` before accepting
+a segment. Appending the registered Stripes ID satisfies those checks.
+`kFxCatalog` tracks incompatible effect IDs/parameter meanings, not only
+record layout; this compatible addition does not require a bump. Schema
+stays at 4; scene/preset maximum sizes are unchanged (verified below, not
+just asserted). `preset_codec.*` needed no change either (unchanged since
+the mirror delivery -- it already threads the inner scene's bytes through
+opaquely).
+
+### Recalculated maximum record size and partition fit — unchanged
+
+No byte layout changed, so `kSceneRecordBytes`/`kPresetRecordBytes` are
+identical to the mirror delivery's own already-verified values, reconfirmed
+here by the same two independent methods (direct arithmetic, `kMaxOutputs
+==2`/`MAX_SEGMENTS==32`; and the existing maximum-size round-trip tests,
+which now also vary `effect_id` across the five 1D-capable IDs (including
+`FX_STRIPES`) and, in `test_presets.cpp`, `custom[0..2]` per segment,
+without changing `record.size`):
+
+| Record | Prior (schema 4) | This delivery |
+|---|---|---|
+| Scene (`kSceneRecordBytes`) | 1295 bytes | **1295 bytes (unchanged)** |
+| Preset (`kPresetRecordBytes`) | 1348 bytes | **1348 bytes (unchanged)** |
+
+The existing 24 KiB `nvs`/320 KiB `presets` partitions are therefore
+unaffected; the prior delivery's own NVS-entry accounting still applies
+unchanged. No record is bulk-rewritten as a migration; NVS is never erased.
+
+### The Mirror stack fix — preserved, not touched
+
+`main/presets_at.cpp`'s own handler scratch scenes (`static
+esp_pixels_composer::AtScene scene;`, no `= AtScene{}` reset temporary) were
+verified intact and were not modified by this delivery at all -- this task
+needed no change to preset save/load handling, so the file was never opened
+for editing. Compiled handler stack frames remain the fixed 48 bytes Codex's
+own bench run established; core stack size is unchanged.
+
+### Test coverage added
+
+- `esp_pixels_fx`'s own `test/test_stripes.cpp` (new): metadata (flags/dim/
+  labels, palette/speed/intensity/bg genuinely absent); the task brief's own
+  worked example (`custom=1,2,0` -> "two primary pixels followed by three
+  secondary, repeating"), byte-exact; phase shifting the pattern by exactly
+  one source cell (verified against the SAME unshifted sequence, not just
+  "looks different"); boundary custom values `0` and `255` on both slots at
+  once (alternating every cell / all-primary); source width 1; a width not
+  a multiple of the period; and a combined complete-redraw/time-independence
+  gate (pre-seeded marker pixels, a render at `now_ms=0` then a very
+  different `now_ms`, byte-identical either way).
+- `esp_pixels_composer`'s own `ci_harness` (`test/test_composer.cpp`): two
+  new gates using the REAL `Stripes` effect (not a fictitious fixture) --
+  one folding a deliberately non-palindromic band/gap pattern through
+  `mirror`, both with and without `reversed`, byte-exact against the fold
+  formula the Mirror delivery's own worked-example gate already proves; the
+  other crossing two `FakeSink` outputs with an alternating pattern,
+  confirming custom-driven routing and the pre-existing output-crossing
+  contract hold together.
+- `test/test_composer_at.cpp`: three new fictitious fixtures (`AT_TEST_
+  CUSTOM`, full-featured; `AT_TEST_CUSTOM_PARTIAL`, custom-only, missing
+  slot 2 -- doubling as the "absent flag" AND "custom-only effect" fixtures
+  the task requires; `AT_TEST_CUSTOM_2D`, 2D-capable). Gates cover: new-
+  segment defaults (`{128,128,128}`); staged-only (never touches `live_`
+  before publish); every documented parsing rejection, looped over all
+  three commands; the absent-flag rejection alongside the other two slots
+  still accepted, plus a custom-only effect's own `AT+SEG=<id>?` still
+  dispatching cleanly; shape-neutral acceptance on a staged 2D entry
+  (unlike `AT+SEGMIRROR`'s own 1D-only gate); `AT+SEGSET` replacing a
+  staged effect preserving all three custom bytes even when the NEW effect
+  declares none of them (an unsupported slot stays DATA, never erased); a
+  real `AT+SEGPUB` round trip covering all three slots separately including
+  both boundaries (`0`/`255`); and `attachAtPersistence()` restoring custom
+  bytes into both the live effect and `exportConfirmedScene()`. Registration
+  count updated 23 -> 26 everywhere it is asserted.
+- `pixels_scene_test`'s own `test_scene.cpp`/`test_presets.cpp`: the
+  existing 32-segment maximum-size round trips now also cycle `effect_id`
+  through the five 1D-capable IDs (including Stripes) and, in `test_presets.cpp`,
+  vary `custom[0..2]` per segment with an explicit per-segment survival
+  check after the full preset round trip -- `record.size` staying exactly
+  `kPresetRecordBytes` throughout confirms the 1348-byte maximum really did
+  stay unchanged, not just by assertion in this README.
+
+Static DRAM in `pixels_scene_test`: the Mirror delivery's own bench-verified
+baseline was 178512/180736 bytes used (2224 free); this delivery's own
+build reports **178528/180736 bytes used (2208 free, 98.78%)** -- a real,
+build-verified, still-positive margin, changed by only 16 bytes despite
+substantial new registered coverage across four files, because every new
+large scratch object (`AtScene` pairs in the new AT persistence/fixture
+gates) was heap-allocated (`std::nothrow`, matching this suite's own
+established pattern) from the start rather than added as a new `static`.
+No coverage was dropped to fit. Binary sizes (this delivery, compiled, not
+yet executed): application 262272 bytes; `pixels_scene_test` 592272 bytes;
+Composer `ci_harness` 451360 bytes; `esp_pixels_fx` `ci_harness` 141776
+bytes; `pixels_adapter_test` 187312 bytes.
+
+### Proposed bench sequence (not yet run)
+
+Uses the existing two-output topology (GPIO16/50, GPIO17/12) plus the new
+`Stripes` effect (id 5) as the concrete demonstration -- no other new
+effect. **Use a BACKED-UP EXISTING position (e.g. Pos100) for any temporary
+staging, never a 101st name; restore all 100 originals and finish on
+Pos100**, exactly like the prior three deliveries.
+
+1. Verify backups of the current NVS/preset partitions before changes.
+   Flash the application and the expanded `pixels_scene_test`; run both;
+   restore the application afterward. Run the independent adapter suite
+   too; the combined suite counts must retain at least the 6760 baseline
+   checks, with zero failures.
+2. `AT+SEGCLR`, `AT+SEGSET=1,0,20,5` (Stripes, `effect_id=5`, GPIO16's own
+   first 20 pixels), `AT+SEGCOL=1,255,0,0`, `AT+SEGCOL2=1,0,0,255`,
+   `AT+SEGCUSTOM1=1,1`, `AT+SEGCUSTOM2=1,2`, `AT+SEGCUSTOM3=1,0`,
+   `AT+SEGPUB` -- the task brief's own worked example: two red pixels then
+   three blue, repeating (band=2, gap=3, phase=0).
+3. `AT+SEGCUSTOM3=1,1`, `AT+SEGPUB` -- confirm the whole pattern visibly
+   shifts by exactly one pixel, nothing else changing.
+4. `AT+SEGCUSTOM1=1,0`, `AT+SEGPUB` -- band shrinks to 1 (single red pixels
+   between three-wide blue gaps); confirm each custom control acts
+   independently of the others (gap/phase unaffected).
+5. Mirror interaction: `AT+SEGSET=1,0,20,5`, `AT+SEGCUSTOM1=1,1`,
+   `AT+SEGCUSTOM2=1,2`, `AT+SEGCUSTOM3=1,0`, `AT+SEGMIRROR=1,1`,
+   `AT+SEGPUB` -- confirm the band/gap pattern now folds symmetrically
+   about the segment's own midpoint (N=20, M=10), same fold contract the
+   Mirror delivery's own bench sequence already demonstrated with Rainbow.
+6. A segment crossing both physical outputs: `AT+SEGSET=2,40,60,5`
+   (Stripes spanning GPIO16's own tail and GPIO17's own head at the
+   identity boundary index 50), `AT+SEGCOL=2,0,255,0`, `AT+SEGCOL2=2,0,0,0`,
+   `AT+SEGCUSTOM1=2,2`, `AT+SEGCUSTOM2=2,2`, `AT+SEGCUSTOM3=2,0`,
+   `AT+SEGPUB` -- confirm the green/black band pattern continues correctly
+   across the output boundary with no visible seam or reset.
+7. Save the active Stripes scene to the BACKED-UP Pos100 FIRST, then
+   disable/publish to black and use `AT+PRESETLOAD=Pos100` to
+   confirm recall including all three custom values; separately `AT+RESET`
+   and verify the saved current scene recovers identically (compare
+   band/gap/phase, not animation phase -- Stripes has none).
+8. Restore all 100 original presets from backup, recall Pos001..Pos100 with
+   geometry/color checks, and finish on Pos100 -- IDENTITY map, LED34 red,
+   brightness 96, GPIO17 black, exactly as the task's own baseline
+   describes. Keep serial captures throughout; builds and physical
+   observation are recorded separately.
+
 ## Known gaps
 
 Review on 2026-09-14 fixed incompatible presets being cataloged as free,
@@ -1042,6 +1252,5 @@ effects.
 - Symmetric 1D mirror passed hardware execution and visual confirmation.
   It is distinct from the existing `reversed` flag; see the mirror section
   above. Reflection of 2D segments is outside this delivery.
-- No AT setters exist for the three per-segment custom effect parameters;
-  they are retained by persistence only when already present in a
-  programmatically-staged scene.
+- Custom parameters now have three per-segment AT setters and Stripes as a
+  production consumer; see this delivery's validation record above.

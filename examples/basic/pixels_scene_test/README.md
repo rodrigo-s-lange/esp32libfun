@@ -1,5 +1,16 @@
 # Scene retention gates (ESP32)
 
+Latest hardware run (2026-09-22, custom parameters/Stripes): **7088 checks,
+zero failures** on WROOM/COM6. Binary 592352 B; static DRAM 178528/180736 B
+(2208 B free). The independent adapter runner adds 172 passing checks.
+The first run caught invalid 1D codec fixtures selecting 2D-only XYGradient;
+the fixtures now include Stripes among the five 1D-capable IDs and abort
+their record-corruption checks if initial encoding fails. No production
+codec change was needed. Stripes now also tests phase 255 together with
+both widths at 255. Captures: root
+`build-wroom-rmt-safe/bench-custom-20260922/scene-fixed-tests.log` and
+`adapter-tests.log`.
+
 Build with `idf.py -DIDF_TARGET=esp32 build`, flash explicitly with
 `idf.py -p COM6 flash`, and capture 115200-baud serial. This image replaces the
 bench application temporarily. It runs Composer core/AT suites plus the real
@@ -287,3 +298,45 @@ suite passed again with that fix; final binary size: 575792 bytes.
 Any future addition to this specific binary
 should re-measure this margin before assuming it still fits; there is
 markedly less headroom left than the previous two deliveries reported.
+
+### Usable custom effect parameters — built, not yet executed on WROOM (22/09/26)
+
+No `scene_codec.*`/`preset_codec.*` change: `FxParams::custom[3]` was
+already carried through every schema's own encode/decode loop before this
+delivery (verified against the actual code, not assumed -- see
+`main/README.md`'s own "Persistence" note). This image was rebuilt only to
+link the new `esp_pixels_fx` effect (`Stripes`, id 5) and the new Composer
+AT setters against it.
+
+- New `${BENCH_ROOT}/../esp_pixels_fx/test/test_stripes.cpp` wired into this
+  image's own `main/CMakeLists.txt`/`main.cpp` (`run_stripes_tests()`/
+  `stripes_check_count()`, same pattern `test_xy_gradient.cpp` already
+  established): metadata, the task brief's own worked example, phase
+  shifting by exactly one cell, boundary custom values, source width 1, a
+  non-period-multiple width, and combined complete-redraw/time-independence.
+- `test_scene.cpp`'s `codecTests()` and `test_presets.cpp`'s own maximum-
+  size round trip now cycle `effect_id` through the five 1D-capable IDs
+  (0, 1, 2, 3, 5), including Stripes. XYGradient requires 2D geometry and
+  cannot be used in these 1D fixtures;
+  `test_presets.cpp` additionally varies `custom[0..2]` per segment with an
+  explicit per-segment survival check -- `record.size` staying exactly
+  `kPresetRecordBytes` throughout the whole 32-segment round trip confirms
+  the 1348-byte maximum really did stay unchanged.
+- `esp_pixels_composer`'s own `ci_harness` (`test_composer.cpp`/
+  `test_composer_at.cpp`, linked into THIS image too) gained the full
+  custom-parameter gate set: two real-`Stripes`-effect composition
+  integration gates (mirror/reverse fold, two-output crossing) and the full
+  `AT+SEGCUSTOM1/2/3` stage/publish/persistence/shape-neutral set -- see
+  `esp_pixels_composer/test/README.md` for the exact list.
+
+This delivery's own link-time DRAM margin barely moved: from the Mirror
+delivery's own bench-verified 178512/180736 bytes used (2224 free) to
+**178528/180736 bytes used (2208 free, 98.78%)** -- only 16 bytes consumed
+despite four files' worth of new registered coverage, because every new
+large scratch object was heap-allocated (`std::nothrow`) from the start
+rather than added as a new `static`; no coverage was dropped to fit.
+**Executed on WROOM: 7088 checks passed.** Final binary size after review
+fixes: 592352 bytes (original handoff build: 592272 bytes).
+Any future addition to this specific binary should re-measure this margin
+before assuming it still fits; the margin is now even tighter than the
+Mirror delivery's own already-tight report.

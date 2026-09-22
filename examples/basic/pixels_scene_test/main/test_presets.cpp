@@ -59,18 +59,25 @@ void presetCodecTests()
     scene.count = comp::MAX_SEGMENTS;
     scene.brightness = 60;
     scene.paused = true;
+    constexpr uint8_t effects1D[] = {0, 1, 2, 3, 5}; // XYGradient (4) requires 2D geometry.
     for (unsigned i = 0; i < scene.count; ++i) {
         auto &s = scene.segments[i];
-        s.id = 200 + i; s.start = i; s.stop = i + 1; s.effect_id = i % 4;
+        s.id = 200 + i; s.start = i; s.stop = i + 1; s.effect_id = effects1D[i % 5];
         s.mirror = (i % 3) == 0; // Task 7G: schema-4 flags byte covered at the preset (opaque-blob) level too
         s.params.color[0] = {static_cast<uint8_t>(i), static_cast<uint8_t>(10 + i), static_cast<uint8_t>(20 + i)};
+        s.params.custom[0] = static_cast<uint8_t>(i); // Task 7H: custom bytes covered at the preset level too
+        s.params.custom[1] = static_cast<uint8_t>(30 + i);
+        s.params.custom[2] = static_cast<uint8_t>(220 - i);
     }
     constexpr uint64_t generation = 0xabcdef0123456789ULL;
     static char name31[bench::kPresetNameMaxLen + 1];
     for (size_t i = 0; i < bench::kPresetNameMaxLen; ++i) { name31[i] = static_cast<char>('A' + (i % 26)); }
     name31[bench::kPresetNameMaxLen] = '\0';
 
-    CHECK(bench::encodePreset(name31, bench::kPresetNameMaxLen, scene, topology2, bench::MapConfig{}, generation, record) == ESP_OK);
+    const esp_err_t encoded = bench::encodePreset(name31, bench::kPresetNameMaxLen, scene,
+                                                 topology2, bench::MapConfig{}, generation, record);
+    CHECK(encoded == ESP_OK);
+    if (encoded != ESP_OK) { return; } // Do not corrupt/CRC an uninitialized record after a failed fixture.
     CHECK(record.size == bench::kPresetRecordBytes);
     CHECK(record.bytes[0] == 'P' && record.bytes[1] == 'S' && record.bytes[2] == 'T' && record.bytes[3] == '1');
 
@@ -84,6 +91,10 @@ void presetCodecTests()
     CHECK(decoded.count == comp::MAX_SEGMENTS && decoded.brightness == 60 && decoded.paused);
     for (unsigned i = 0; i < comp::MAX_SEGMENTS; ++i) {
         CHECK(decoded.segments[i].mirror == ((i % 3) == 0)); // survives the full preset (schema-4 inner scene) round trip
+        CHECK(decoded.segments[i].effect_id == effects1D[i % 5]);
+        CHECK(decoded.segments[i].params.custom[0] == static_cast<uint8_t>(i));
+        CHECK(decoded.segments[i].params.custom[1] == static_cast<uint8_t>(30 + i));
+        CHECK(decoded.segments[i].params.custom[2] == static_cast<uint8_t>(220 - i));
     }
 
     CHECK(bench::encodePreset(decoded_name, decoded_name_len, decoded, topology2, bench::MapConfig{}, found, reencoded) == ESP_OK);

@@ -38,9 +38,10 @@ void codecTests()
     scene.count = comp::MAX_SEGMENTS;
     scene.brightness = 71;
     scene.paused = true;
+    constexpr uint8_t effects1D[] = {0, 1, 2, 3, 5}; // XYGradient (4) requires 2D geometry.
     for (unsigned i = 0; i < scene.count; ++i) {
         auto &s = scene.segments[i];
-        s.id = 100 + i; s.start = i; s.stop = i + 1; s.effect_id = i % 4;
+        s.id = 100 + i; s.start = i; s.stop = i + 1; s.effect_id = effects1D[i % 5];
         s.brightness = 200 - i; s.blend = static_cast<comp::BlendMode>(i % 3);
         s.opacity = 71 + i; s.reversed = (i % 2) != 0; s.mirror = (i % 3) == 0; // flags byte covers all 4 combos
         s.state = static_cast<comp::SegmentState>(i % 3); s.restart_generation = 0xffff0000U + i;
@@ -58,7 +59,9 @@ void codecTests()
     // segment flags byte's own MEANING differs; see scene_codec.hpp's own
     // doc.
     constexpr size_t kHeaderBytes = 38;
-    CHECK(bench::encodeScene(scene, topology, identity, generation, record) == ESP_OK);
+    const esp_err_t encoded = bench::encodeScene(scene, topology, identity, generation, record);
+    CHECK(encoded == ESP_OK);
+    if (encoded != ESP_OK) { return; } // Do not corrupt/CRC an uninitialized record after a failed fixture.
     CHECK(record.size == kHeaderBytes + comp::MAX_SEGMENTS * bench::kSceneSegmentBytesV3 + 4);
     CHECK(record.bytes[0] == 'S' && record.bytes[1] == 'C' && record.bytes[2] == 'N' && record.bytes[3] == '1');
     CHECK(record.bytes[4] == 4 && record.bytes[5] == 0); // schema field: encodeScene() now writes schema 4
