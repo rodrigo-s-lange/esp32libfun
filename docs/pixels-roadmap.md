@@ -68,7 +68,8 @@ operator visual confirmation. Announce and obtain confirmation before visual
 changes; arrange extra output wiring with Rodrigo before touching hardware.
 Do not infer push/tag/flash authorization from an earlier delivery.
 
-Next delivery: custom effect parameters via AT; implementation brief to be prepared.
+Next task: [custom effect parameters via AT](pixels-custom-params-task.md),
+including one Stripes consumer so the three controls are usable on the bench.
 Completed briefs: [symmetric mirror](pixels-mirror-task.md),
 [2D canvas / ledmap](pixels-2d-task.md),
 [multiple physical outputs](pixels-outputs-task.md) and
