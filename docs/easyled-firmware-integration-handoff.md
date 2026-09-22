@@ -41,6 +41,12 @@ essas entregas. A aplicação de pixels passou pela execução das suítes em ha
 com zero falhas no último ciclo, e pelas confirmações visuais de Rodrigo. Os 100
 presets originais foram restaurados e verificados após a bancada.
 
+**Os 100 presets atualmente gravados são dados descartáveis de teste.** Sua
+restauração fez parte do procedimento de bancada, não de um requisito de migração
+para o produto. As 100 posições representam a capacidade local disponível; o
+usuário definirá novos presets pelo frontend. Não é necessário transportar os
+nomes ou o conteúdo desse catálogo de teste para a plataforma.
+
 O 2D foi observado como canvas virtual 5×10 em uma fita reta. Ainda não foi
 validado em um painel físico montado em matriz. A nova conectividade não foi
 validada contra o broker EasyLED nem junto ao renderizador em hardware.
@@ -59,7 +65,7 @@ validada contra o broker EasyLED nem junto ao renderizador em hardware.
 | Saídas físicas | Até duas saídas no adaptador/aplicação atual; GPIO, quantidade e ordem RGB configuráveis | Os segmentos usam um espaço lógico global e podem atravessar a divisão entre saídas |
 | Topologia persistente | Configuração de saídas preparada, validada e salva | Entra em vigor no próximo reboot; não há troca dinâmica de topologia nesta aplicação |
 | Canvas / ledmap | Motor com mapeamento real e segmentos 2D; suporta células sem pixel no ledmap | A interface AT/persistência da aplicação atual gera um único retângulo progressivo ou serpentino; não oferece editor de mapa arbitrário |
-| Presets | 100 posições nomeadas; salvar, listar, carregar, substituir e excluir | Nomes de 1–31 bytes ASCII imprimíveis; comparação sensível a maiúsculas; nomes não são UUIDs da plataforma |
+| Presets | Capacidade de 100 posições nomeadas; salvar, listar, carregar, substituir e excluir | O conteúdo atual é descartável. A interface local usa nomes de 1–31 bytes ASCII, sensíveis a maiúsculas; a associação futura aos presets criados no frontend ainda precisa ser definida |
 | Recuperação | Cena confirmada e presets persistidos em NVS; recuperação após reboot | Restaura configuração; não persiste fase de animação nem framebuffer |
 
 O limite de validação atual é de 2048 pixels por saída. **Esse valor não é uma
@@ -135,8 +141,9 @@ EasyLED, OTA/rollback e integração de rede com renderização em um único fir
 
 A aplicação de bancada usa partição de aplicação única, sem slots OTA. O exemplo
 de rede possui outra tabela de partições. A integração deverá decidir o layout
-de produto e a preservação/migração dos presets; não se deve sobrepor essas
-tabelas como se fossem intercambiáveis.
+de produto; os presets de teste não impõem uma obrigação de migração. Para os
+presets que os usuários criarem futuramente, será necessário definir a política
+de persistência e recuperação. As tabelas atuais não são intercambiáveis.
 
 ## 4. O que encontramos na plataforma
 
@@ -176,7 +183,7 @@ indiquem revisões posteriores e correções onde houver trabalho ainda não pub
 | Entrega de configuração | Endpoint HTTPS real, autenticação, formato completo do payload, limite de bytes, algoritmo/checksum e definição dos bytes exatos verificados. Quais são as regras de timeout, retry e URL expirada? |
 | Comandos e resultados | Exemplos completos de `apply_config` e `activate_preset`, com received/accepted/applied/rejected/failed. Quais campos/códigos de erro são obrigatórios? Quando applied implica persistência concluída? |
 | Duplicatas e reconexão | Política por command_id, duração/persistência da deduplicação, reenvio do resultado após reboot, comandos obsoletos e sequência de reconciliação após reconectar. requested_at sozinho não define expiração. |
-| Presets | Como mapear UUID e revisão remotos para 100 posições locais? Quando baixar, atualizar, remover ou rejeitar por lotação? Qual comportamento para preset desconhecido e transição fade solicitada? A ativação local atual não implementa crossfade entre cenas. |
+| Presets | Para novos presets definidos pelo usuário no frontend, como associar UUID e revisão às 100 posições locais? O dispositivo mantém todos os presets atribuídos ou um cache sob demanda? Quando baixar, atualizar, remover ou rejeitar por lotação? O catálogo de teste atual pode ser descartado, sem migração de nomes/conteúdo. Qual comportamento para preset desconhecido e transição fade solicitada? A ativação local atual não implementa crossfade entre cenas. |
 | Campos e catálogo | Como representar mirror/reversed/custom/color_source, estado dos segmentos e ordem de composição? Como alinhar IDs 0–5 e depois 6–8 sem renumeração? Precisamos de defaults explícitos e metadados de controles. |
 | Topologia e 2D | Qual schema definitivo de outputs/ledmap, incluindo buracos? Como coordenar alterações que exigem reboot? Nosso descritor AT retangular não é equivalente ao ledmap completo da plataforma. |
 | Estado e capacidades | Payloads exatos de state/event/telemetry, cadência, QoS/retain, boot_id/state_seq, versão desejada/reportada e canal do manifesto de capacidades. Como diferenciar aceito, ativo e persistido? |
