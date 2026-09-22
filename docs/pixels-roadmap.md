@@ -1,6 +1,6 @@
 # EasyLED / pixels roadmap
 
-Updated through the 2026-09-21 checkpoint. This roadmap belongs to the product
+Updated through the 2026-09-22 delivery alignment. This roadmap belongs to the product
 application and external pixels libraries; it does not expand the HAL core.
 
 ## Validated baseline
@@ -55,6 +55,29 @@ for scenes/presets. Hardware suites and storage
 capacity passed; Rodrigo confirmed the 2D increment visually and it is
 checkpointed locally. The bench used a virtual canvas on a straight strip;
 an assembled matrix panel has not been tested.
+
+## Delivery alignment: 2026-10-15
+
+Rodrigo approved the revised sequencing on 2026-09-22 without removing any
+agreed scope. The interface is being developed in the separate EasyLED project.
+This repository and the external pixels libraries own firmware capabilities,
+hardware validation and the integration contracts needed by that interface.
+Do not start a duplicate interface here or assume its transport/API is settled.
+
+Keep Claude's current custom-parameter/Stripes task running. Subsequent effect
+batches and EasyLED integration can progress alongside each other once their
+shared contracts and file ownership are clear. Prioritize an operable flow:
+configure outputs, select an effect, adjust controls, save/recall a preset and
+recover after reboot. Preserve presets, 2D, multiple outputs, Mirror, custom
+parameters and new effects in the agreed scope.
+
+Planning targets (coordinate with EasyLED; not claims of completed work):
+
+- By 2026-09-25: finish the current increment and align the delivery's user flow.
+- By 2026-10-02: first integrated flow controlling real LEDs.
+- By 2026-10-09: integrate the MVP capabilities and prioritized effect batches.
+- 2026-10-10 through 14: fixes, installation/recovery checks and delivery preparation.
+- 2026-10-15: delivery of the validated version.
 
 ## Working cycle
 
