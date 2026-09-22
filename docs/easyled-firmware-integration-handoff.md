@@ -241,23 +241,32 @@ Aceitar campos JSON desconhecidos não dispensa rejeitar tipo ou faixa inválida
 nos campos consumidos.
 
 O payload `apply_config` original de 62 pixels permanece como teste offline. A
-fixture de bancada declara uma única `digital_out`, slot 0, com 50 pixels; o
-mapeamento físico slot 0 → GPIO16 ainda precisa ser formalizado no contrato.
+fixture de bancada declara uma única `digital_out`, slot 0, com 50 pixels e
+`gpio: 16`. Esse campo resolve a fixture de bancada, mas continua provisório até
+ser incorporado ao schema canônico da plataforma.
 
 Hashes informados pela equipe:
 
 | Fixture | SHA-256 dos bytes exatos, sem newline final | Estado local |
 |---|---|---|
 | Configuração original de 62 pixels | `fffcb1c1ba7949c752bd78651c07ed04576d72464d3e5663a20919801e27a543` | Verificado por Codex: 444 bytes, hash confere |
-| Configuração de bancada GPIO16/50 | `b62868aef25369d8b00db8dbc6af34c7c82b060b5570b0b7b24859a7d5547c5a` | Informado; arquivo ainda não acessível neste Windows |
-| Preset com `stop_px=50` | `c9be5621fa0109c6acbf4461a47191b80b3b6ebae2d50714d5c56172f7cc5174` | Informado; arquivo ainda não acessível neste Windows |
+| Configuração de bancada GPIO16/50 | `b62868aef25369d8b00db8dbc6af34c7c82b060b5570b0b7b24859a7d5547c5a` | Verificado por Codex: 475 bytes, hash confere |
+| Preset com `stop_px=50` | `c9be5621fa0109c6acbf4461a47191b80b3b6ebae2d50714d5c56172f7cc5174` | Verificado por Codex: 269 bytes, hash confere |
 
-Os links recebidos apontam para `/home/rodrigo/.codex/artifacts/...`, ausente na
-máquina Windows desta frente. Os dois últimos hashes só podem ser marcados como
-verificados depois que os bytes reais forem anexados ou copiados para um caminho
-acessível. Nenhum endpoint `example.invalid`, UUID de fixture ou arquivo desse
-pacote pode ser tratado como credencial, identidade registrada ou compatibilidade
-de produção.
+Rodrigo forneceu o conteúdo compacto pelo canal de trabalho. Os escapes `\_`
+introduzidos pela formatação foram normalizados para `_`, e o SHA-256 foi calculado
+sobre UTF-8 sem newline final. Estas são as duas linhas exatas verificadas:
+
+```json
+{"ledmap":null,"outputs":[{"slot_index":0,"type":"digital_out","config":{"gpio":16,"pixel_count":50,"strip_type":"WS2812B","color_order":"GRB","reversed":false}}],"inputs":[],"segments":[{"device_id":"11111111-1111-4111-8111-111111111111","segment_index":0,"effect_id":2,"is_2d":false,"start_px":0,"stop_px":50,"config":{"palette_id":0,"speed":96,"intensity":128,"brightness":255,"blend":"replace","opacity":255},"updated_at":"2026-09-22T13:10:00Z"}],"global_brightness":255}
+```
+
+```json
+{"segments":[{"device_id":"11111111-1111-4111-8111-111111111111","segment_index":0,"effect_id":0,"is_2d":false,"start_px":0,"stop_px":50,"config":{"colors":["#0040FF"],"brightness":220,"blend":"replace","opacity":255},"updated_at":"2026-09-22T13:00:00Z"}],"outputs":[]}
+```
+
+Nenhum endpoint `example.invalid`, UUID de fixture ou arquivo desse pacote pode
+ser tratado como credencial, identidade registrada ou compatibilidade de produção.
 
 Propomos como primeiro fluxo conjunto: dispositivo recupera sua cena local,
 conecta com identidade própria, recebe uma configuração válida, confirma o
@@ -275,8 +284,7 @@ Nenhuma alteração no repositório EasyLED é necessária para preparar essas f
 - [Roadmap acordado](pixels-roadmap.md)
 - [Briefing da próxima entrega de efeitos](pixels-effects-batch-task.md)
 
-**Próximo retorno solicitado:** disponibilizar os arquivos reais do pacote em um
-caminho acessível nesta máquina e fechar schema de segmentos/catálogo, bytes
+**Próximo retorno solicitado:** fechar schema de segmentos/catálogo, bytes
 canônicos, política do cache de presets, deduplicação durável, partições/OTA e
 ownership do repositório de firmware. Isso não bloqueia parser, hash,
 serializadores, máquina local de comandos nem o build conjunto de pixels + rede.
