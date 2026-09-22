@@ -116,7 +116,7 @@ operator visual confirmation. Announce and obtain confirmation before visual
 changes; arrange extra output wiring with Rodrigo before touching hardware.
 Do not infer push/tag/flash authorization from an earlier delivery.
 
-Next increment: a focused effect batch (Blink, Breathe and Chase), while the
+Next brief: [Blink, Breathe and Chase](pixels-effects-batch-task.md), while the
 EasyLED team aligns product payloads and catalog entries with firmware capabilities.
 Completed briefs: [custom effect parameters via AT](pixels-custom-params-task.md),
 [symmetric mirror](pixels-mirror-task.md),
