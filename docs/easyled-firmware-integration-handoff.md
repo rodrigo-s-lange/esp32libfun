@@ -34,7 +34,7 @@ código. O documento será encaminhado por Rodrigo; não foi publicado como issu
 | Transporte de pixels | `5d7db6b`, biblioteca esp_pixels |
 | Sessão de rede independente | Checkpoint local `500209a`; build e validação pontual no simulador |
 | SDK | ESP-IDF 6.0; builds desta entrega com 6.0.2 |
-| Bancada | ESP32-WROOM-32; WS2812 RGB/ordem GRB; GPIO16 com 50 pixels e GPIO17 com 12 |
+| Bancada atual | ESP32-WROOM-32; WS2812 RGB/ordem GRB; somente GPIO16 com 50 pixels ativa; GPIO17/12 inativa |
 
 São checkpoints locais; não presumir que tags ou branches remotos já contenham
 essas entregas. A aplicação de pixels passou pela execução das suítes em hardware,
@@ -69,8 +69,10 @@ validada contra o broker EasyLED nem junto ao renderizador em hardware.
 | Recuperação | Cena confirmada e presets persistidos em NVS; recuperação após reboot | Restaura configuração; não persiste fase de animação nem framebuffer |
 
 O limite de validação atual é de 2048 pixels por saída. **Esse valor não é uma
-capacidade de desempenho comprovada com Wi-Fi/TLS:** a bancada possui 62 pixels,
-e o orçamento depende de segmentos, buffers, efeitos e memória disponível.
+capacidade de desempenho comprovada com Wi-Fi/TLS:** a configuração atual da
+bancada possui 50 pixels ativos. As duas saídas, totalizando 62 pixels, foram
+validadas em uma entrega anterior, mas GPIO17/12 está inativa agora. O orçamento
+depende de segmentos, buffers, efeitos e memória disponível.
 O manifesto do produto deverá informar capacidades reais da configuração final.
 
 O controle AT já permite operar esses recursos localmente, incluindo comandos
@@ -112,9 +114,10 @@ formato binário local, **não limites de tamanho de JSON da plataforma**.
 A aplicação diferencia configuração aplicada de configuração salva: uma falha
 na persistência posterior à aplicação é reportada como aplicada e não salva.
 Esse comportamento local não equivale, por si só, à transação durável exigida
-para `apply_config`. O firmware de produto precisa definir corretamente quando
-emite `command_applied`, como trata falha de gravação e como recupera staging
-interrompido. A geração interna do journal também não é o `config_version` remoto.
+para `apply_config`. Pela regra provisória recebida, o adaptador de produto deve
+emitir `command_applied` somente após persistência recuperável e ativação atômica;
+uma falha de gravação gera `command_failed` e preserva/restaura o estado anterior.
+A geração interna do journal também não é o `config_version` remoto.
 
 ## 3. Conectividade preparada
 
@@ -132,6 +135,8 @@ Implementamos um componente pertencente à aplicação, em exemplo independente:
   do comando nem confirmação pelo backend.
 - Rejeição de entregas retained no caminho de comandos. Deduplicação por
   `command_id`, validade temporal e recuperação de resultados ainda serão integradas.
+  A regra provisória de deduplicação já foi fornecida pela EasyLED: um comando
+  terminal repetido não é reexecutado e republica seu resultado terminal original.
 
 O build independente passou em ESP-IDF 6.0.2, e a montagem de mensagens foi
 executada no simulador. **Ainda não estão entregues:** bootstrap/claim do produto,
@@ -173,39 +178,86 @@ Essas referências orientam a integração, mas não demonstram que todos os end
 necessários ao dispositivo já estejam consolidados ou implantados. Por favor,
 indiquem revisões posteriores e correções onde houver trabalho ainda não publicado.
 
-## 5. Perguntas para fechar a primeira integração
+### Retorno da equipe EasyLED — 22/09/2026
 
-| Tema | Resposta ou material solicitado |
+A equipe confirmou `main` em `306fa44a4f4112c3518f5fa7dfa3ecb105c19c85`
+e o contrato de controle v1.0.0 como referências suficientes para implementar a
+fronteira de transporte e a máquina local de comandos. Não há ainda integração
+real ponta a ponta nem ambiente de desenvolvimento implantado comprovado.
+
+Já existem autoria HTTP de ledmaps, segmentos, presets, versões de configuração
+e slots; persistência de comandos/auditoria; autenticação do broker; e definição
+de tópicos, envelopes, eventos, estado retido e rejeições mínimas. Continuam
+pendentes claim/bootstrap e credenciais MQTT (#47), publicação/outbox (#56),
+ingestão de estado/evento (#57), reconciliação (#58), timeout/retry (#59),
+entrega HTTPS dos bytes (#60), manifesto de capacidades (#61/PR #66) e o firmware
+de produto (#48).
+
+Também foram confirmadas as divergências que precisam de contrato:
+
+- Catálogo da plataforma ainda contém somente efeitos 0–2; deve receber 3–8 por
+  nova migration, preservando todos os IDs existentes.
+- `SegmentConfig` ainda não contém mirror, reverse por segmento, custom[3] nem
+  color_source. `digital_out.reversed` representa orientação física da saída e
+  não pode ser usado como reverse de segmento.
+- O backend atualmente calcula checksum dos bytes produzidos por `json.Marshal`,
+  mas mantém apenas JSONB. #60 deve preservar os bytes canônicos ou definir uma
+  canonicalização formal reproduzível.
+- O manifesto foi decidido na PR #66 como `event/capability_reported` no boot e
+  a cada 60 minutos, validade de 24 horas e vínculo à versão do firmware. Essa
+  decisão ainda não pertence ao `main`.
+- A correção de config-version para relé associado a dimmer desabilitado está na
+  PR #71 e também ainda não pertence ao `main`.
+
+O alinhamento provisório é identificado por `FW-CONTRACT-ALIGN-2026-09-22`.
+Rodrigo mantém as decisões finais; Codex planeja/revisa e registra evidências;
+Claude implementa após autorização explícita; a frente de firmware apresenta
+evidência no dispositivo.
+
+## 5. Decisões recebidas e pontos ainda abertos
+
+| Tema | Estado do alinhamento |
 |---|---|
-| Referência oficial | Qual commit/tag do contrato e da OpenAPI devemos fixar? Quais operações estão implementadas, implantadas e ainda pendentes? Há JSON Schema/AsyncAPI ou fixtures MQTT canônicas? |
+| Referência oficial | Respondido provisoriamente: `main@306fa44` e contrato v1.0.0. As fixtures não são canônicas e não há ambiente implantado comprovado. |
 | Bootstrap e credenciais | Qual é o fluxo do dispositivo até obter tenant_id/device_id, credencial HTTPS e credencial MQTT? Endpoints, autenticação, expiração/rotação e exemplo de resposta. Não enviar segredos neste documento. |
 | Ambiente de desenvolvimento | Como obter um dispositivo de teste e acesso autorizado? Qual WSS URI/path, CA e versão MQTT? Fornecer dados de acesso pelo canal apropriado. |
 | Entrega de configuração | Endpoint HTTPS real, autenticação, formato completo do payload, limite de bytes, algoritmo/checksum e definição dos bytes exatos verificados. Quais são as regras de timeout, retry e URL expirada? |
-| Comandos e resultados | Exemplos completos de `apply_config` e `activate_preset`, com received/accepted/applied/rejected/failed. Quais campos/códigos de erro são obrigatórios? Quando applied implica persistência concluída? |
-| Duplicatas e reconexão | Política por command_id, duração/persistência da deduplicação, reenvio do resultado após reboot, comandos obsoletos e sequência de reconciliação após reconectar. requested_at sozinho não define expiração. |
-| Presets | Para novos presets definidos pelo usuário no frontend, como associar UUID e revisão às 100 posições locais? O dispositivo mantém todos os presets atribuídos ou um cache sob demanda? Quando baixar, atualizar, remover ou rejeitar por lotação? O catálogo de teste atual pode ser descartado, sem migração de nomes/conteúdo. Qual comportamento para preset desconhecido e transição fade solicitada? A ativação local atual não implementa crossfade entre cenas. |
+| Comandos e resultados | Fixtures provisórias foram fornecidas. `command_applied` só ocorre após validação, checksum aplicável, commit durável recuperável, ativação no frame boundary e confirmação do estado ativo. Falha de persistência gera `command_failed` e preserva/restaura o estado anterior. |
+| Duplicatas e reconexão | Para `command_id` já terminal, não revalidar, baixar, gravar ou reaplicar; republicar o resultado terminal persistido, preservando resultado, motivo e `event_at`. Continuam abertas capacidade/janela do journal, comandos obsoletos e reconciliação. |
+| Presets | Regra provisória: localizar primeiro por `preset_id` + checksum; em ausência/divergência, baixar bytes autenticados por HTTPS, validar, gravar e só então ativar. Novo comando para preset já ativo é no-op bem-sucedido e completa seu próprio ciclo. Ainda faltam URL/checksum canônicos, política das 100 posições e enum de transição. O catálogo de bancada é descartável. |
 | Campos e catálogo | Como representar mirror/reversed/custom/color_source, estado dos segmentos e ordem de composição? Como alinhar IDs 0–5 e depois 6–8 sem renumeração? Precisamos de defaults explícitos e metadados de controles. |
 | Topologia e 2D | Qual schema definitivo de outputs/ledmap, incluindo buracos? Como coordenar alterações que exigem reboot? Nosso descritor AT retangular não é equivalente ao ledmap completo da plataforma. |
-| Estado e capacidades | Payloads exatos de state/event/telemetry, cadência, QoS/retain, boot_id/state_seq, versão desejada/reportada e canal do manifesto de capacidades. Como diferenciar aceito, ativo e persistido? |
+| Estado e capacidades | Fixture provisória de state foi fornecida. PR #66 decide provisoriamente `event/capability_reported` no boot e a cada 60 min, válido por 24 h e vinculado ao firmware; falta entrada em `main` e fechamento dos demais detalhes de QoS/retain/reconciliação. |
 | Escopo e ownership | Onde ficará o repositório de firmware de produto e quem mantém essa integração? Como tratar recursos de dimmer/relé mencionados no preset EasyLED, ainda não integrados à aplicação de pixels aqui descrita? |
 | OTA e armazenamento | Qual contrato vigente de artefatos, assinatura, rollback e staging? O contrato de controle e a issue #48 descrevem aspectos distintos; precisamos fixar a exigência de MVP antes de fechar partições e boot. |
 
-## 6. Material mínimo para destravar trabalho agora
+## 6. Fixtures provisórias recebidas
 
-Não precisamos esperar que toda a plataforma esteja concluída. Para começar,
-pedimos este pacote pequeno:
+O pacote `FW-CONTRACT-ALIGN-2026-09-22` inclui exemplos provisórios de
+`apply_config`, `activate_preset`, resolução e payload de preset, eventos de
+sucesso/rejeição/falha, duplicata terminal e estado após configuração/preset.
+Ele serve somente a parser, hash, serialização e máquina local de comandos.
+Aceitar campos JSON desconhecidos não dispensa rejeitar tipo ou faixa inválida
+nos campos consumidos.
 
-1. Links e revisões oficiais, com uma lista curta do que já pode ser consumido.
-2. Um `apply_config` completo, os bytes do payload HTTPS correspondente e seu
-   checksum, mais os eventos e o estado esperados após aplicação.
-3. Um `activate_preset` completo, incluindo como resolver o preset remoto.
-4. Um exemplo de rejeição e a regra para repetição do mesmo command_id.
-5. Instruções para obter credenciais de desenvolvimento e o responsável técnico
-   para alinhar os campos que faltam.
+O payload `apply_config` original de 62 pixels permanece como teste offline. A
+fixture de bancada declara uma única `digital_out`, slot 0, com 50 pixels; o
+mapeamento físico slot 0 → GPIO16 ainda precisa ser formalizado no contrato.
 
-Fixtures sem segredos já permitem implementar a adaptação no firmware enquanto
-o ambiente real é preparado. Por favor, identifiquem expressamente qualquer
-fixture provisória para não tratarmos um exemplo como contrato consolidado.
+Hashes informados pela equipe:
+
+| Fixture | SHA-256 dos bytes exatos, sem newline final | Estado local |
+|---|---|---|
+| Configuração original de 62 pixels | `fffcb1c1ba7949c752bd78651c07ed04576d72464d3e5663a20919801e27a543` | Verificado por Codex: 444 bytes, hash confere |
+| Configuração de bancada GPIO16/50 | `b62868aef25369d8b00db8dbc6af34c7c82b060b5570b0b7b24859a7d5547c5a` | Informado; arquivo ainda não acessível neste Windows |
+| Preset com `stop_px=50` | `c9be5621fa0109c6acbf4461a47191b80b3b6ebae2d50714d5c56172f7cc5174` | Informado; arquivo ainda não acessível neste Windows |
+
+Os links recebidos apontam para `/home/rodrigo/.codex/artifacts/...`, ausente na
+máquina Windows desta frente. Os dois últimos hashes só podem ser marcados como
+verificados depois que os bytes reais forem anexados ou copiados para um caminho
+acessível. Nenhum endpoint `example.invalid`, UUID de fixture ou arquivo desse
+pacote pode ser tratado como credencial, identidade registrada ou compatibilidade
+de produção.
 
 Propomos como primeiro fluxo conjunto: dispositivo recupera sua cena local,
 conecta com identidade própria, recebe uma configuração válida, confirma o
@@ -223,6 +275,8 @@ Nenhuma alteração no repositório EasyLED é necessária para preparar essas f
 - [Roadmap acordado](pixels-roadmap.md)
 - [Briefing da próxima entrega de efeitos](pixels-effects-batch-task.md)
 
-**Retorno solicitado:** confirmar a referência canônica, responder ao pacote
-mínimo acima e apontar o responsável pela integração. Com isso conseguimos
-implementar contra a plataforma existente e evitar divergências de protocolo.
+**Próximo retorno solicitado:** disponibilizar os arquivos reais do pacote em um
+caminho acessível nesta máquina e fechar schema de segmentos/catálogo, bytes
+canônicos, política do cache de presets, deduplicação durável, partições/OTA e
+ownership do repositório de firmware. Isso não bloqueia parser, hash,
+serializadores, máquina local de comandos nem o build conjunto de pixels + rede.
