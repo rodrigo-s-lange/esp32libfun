@@ -59,10 +59,11 @@ void presetCodecTests()
     scene.count = comp::MAX_SEGMENTS;
     scene.brightness = 60;
     scene.paused = true;
-    constexpr uint8_t effects1D[] = {0, 1, 2, 3, 5}; // XYGradient (4) requires 2D geometry.
+    constexpr uint8_t effects1D[] = {0, 1, 2, 3, 5, 6, 7, 8}; // XYGradient (4) requires 2D geometry.
+    constexpr unsigned kEffects1DCount = sizeof(effects1D) / sizeof(effects1D[0]);
     for (unsigned i = 0; i < scene.count; ++i) {
         auto &s = scene.segments[i];
-        s.id = 200 + i; s.start = i; s.stop = i + 1; s.effect_id = effects1D[i % 5];
+        s.id = 200 + i; s.start = i; s.stop = i + 1; s.effect_id = effects1D[i % kEffects1DCount];
         s.mirror = (i % 3) == 0; // Task 7G: schema-4 flags byte covered at the preset (opaque-blob) level too
         s.params.color[0] = {static_cast<uint8_t>(i), static_cast<uint8_t>(10 + i), static_cast<uint8_t>(20 + i)};
         s.params.custom[0] = static_cast<uint8_t>(i); // Task 7H: custom bytes covered at the preset level too
@@ -91,7 +92,7 @@ void presetCodecTests()
     CHECK(decoded.count == comp::MAX_SEGMENTS && decoded.brightness == 60 && decoded.paused);
     for (unsigned i = 0; i < comp::MAX_SEGMENTS; ++i) {
         CHECK(decoded.segments[i].mirror == ((i % 3) == 0)); // survives the full preset (schema-4 inner scene) round trip
-        CHECK(decoded.segments[i].effect_id == effects1D[i % 5]);
+        CHECK(decoded.segments[i].effect_id == effects1D[i % kEffects1DCount]);
         CHECK(decoded.segments[i].params.custom[0] == static_cast<uint8_t>(i));
         CHECK(decoded.segments[i].params.custom[1] == static_cast<uint8_t>(30 + i));
         CHECK(decoded.segments[i].params.custom[2] == static_cast<uint8_t>(220 - i));

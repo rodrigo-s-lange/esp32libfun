@@ -38,10 +38,11 @@ void codecTests()
     scene.count = comp::MAX_SEGMENTS;
     scene.brightness = 71;
     scene.paused = true;
-    constexpr uint8_t effects1D[] = {0, 1, 2, 3, 5}; // XYGradient (4) requires 2D geometry.
+    constexpr uint8_t effects1D[] = {0, 1, 2, 3, 5, 6, 7, 8}; // XYGradient (4) requires 2D geometry.
+    constexpr unsigned kEffects1DCount = sizeof(effects1D) / sizeof(effects1D[0]);
     for (unsigned i = 0; i < scene.count; ++i) {
         auto &s = scene.segments[i];
-        s.id = 100 + i; s.start = i; s.stop = i + 1; s.effect_id = effects1D[i % 5];
+        s.id = 100 + i; s.start = i; s.stop = i + 1; s.effect_id = effects1D[i % kEffects1DCount];
         s.brightness = 200 - i; s.blend = static_cast<comp::BlendMode>(i % 3);
         s.opacity = 71 + i; s.reversed = (i % 2) != 0; s.mirror = (i % 3) == 0; // flags byte covers all 4 combos
         s.state = static_cast<comp::SegmentState>(i % 3); s.restart_generation = 0xffff0000U + i;

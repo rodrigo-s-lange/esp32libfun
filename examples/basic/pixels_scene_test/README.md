@@ -340,3 +340,48 @@ fixes: 592352 bytes (original handoff build: 592272 bytes).
 Any future addition to this specific binary should re-measure this margin
 before assuming it still fits; the margin is now even tighter than the
 Mirror delivery's own already-tight report.
+
+### Blink, Breathe and Chase — reviewed and executed in QEMU, WROOM pending (27/09/26)
+
+No `scene_codec.*`/`preset_codec.*` change: `effect_id` is an opaque byte,
+never validated against a known-ids list at the codec level (verified
+against the actual code, not assumed -- see `main/README.md`'s own
+"Persistence" note). This image was rebuilt only to link the three new
+`esp_pixels_fx` effects and their tests against it.
+
+- New `${BENCH_ROOT}/../esp_pixels_fx/test/{test_blink,test_breathe,
+  test_chase}.cpp` wired into this image's own `main/CMakeLists.txt`/
+  `main.cpp` (`run_blink_tests()`/`run_breathe_tests()`/`run_chase_tests()`
+  + their own `_check_count()`, same pattern `test_stripes.cpp` already
+  established): exact timing boundaries, normalized `sin8()` blend curve,
+  spatial motion direction/wrap, `speed==0`/`speed==255` extremes, real 2D
+  rendering, complete redraw, independent runtimes, restart determinism,
+  repeated-timestamp and clock-rollover safety -- see
+  `esp_pixels_fx/README.md`'s own `v0.2.3` entry for the full per-effect
+  list.
+- `test_scene.cpp`'s `codecTests()` and `test_presets.cpp`'s own maximum-
+  size round trip now cycle `effect_id` through all eight registered
+  1D-compatible ids (`i % 8`, computed from `sizeof(effects1D)` rather than
+  a repeated magic number, so a future effect addition cannot silently
+  desync the two).
+- `esp_pixels_composer`'s own `ci_harness` (`test_composer.cpp`/
+  `test_composer_at.cpp`, linked into THIS image too) gained four new
+  integration gates: Chase through Mirror/reverse and a moving two-output
+  crossing, a real 2D Blink segment through an actual `setLedmap()` canvas,
+  and a combined AT-publish/persistence round trip proving both new effect
+  ids and their own distinct parameters survive -- see
+  `esp_pixels_composer/test/README.md` for the exact list.
+
+This delivery's own link-time DRAM margin barely moved: from the custom-
+parameters delivery's own bench-verified 178528/180736 bytes used (2208
+free) to **178568/180736 bytes used (2168 free, 98.8%)** -- only 40 bytes
+consumed by three effects' worth of unit tests plus four Composer
+integration gates, none adding a new `static`; no coverage was dropped to
+fit, no runner split was needed. Codex's review found and fixed two concrete
+effect defects before hardware: Breathe now reaches color1 exactly at the
+start/full-cycle boundary, and Chase uses exact milli-cell accumulation so
+different render cadences reach the same phase. The complete image executed
+in ESP32 QEMU with **7490 checks, zero failures**. WROOM execution remains
+pending because COM6 enumerates but the target is not responding to reset.
+Binary size: 610832 bytes. Any future addition to this specific
+binary should re-measure this margin before assuming it still fits.

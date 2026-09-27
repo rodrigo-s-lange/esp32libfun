@@ -1222,6 +1222,187 @@ Pos100**, exactly like the prior three deliveries.
    describes. Keep serial captures throughout; builds and physical
    observation are recorded separately.
 
+## Blink, Breathe and Chase — implemented, compiled, awaiting Codex's bench (22/09/26 - 02:53PM)
+
+Claude implemented this brief (`docs/pixels-effects-batch-task.md`) against
+app baseline `4d8c1ac99ffdefd2ba1c2cb9a607b6fedf00c882` (branch
+`checkpoint/wroom-composer-app`), Composer baseline
+`d575dbe06ff713a954c13fbac60f58ba43613f4d` (branch
+`feature/at-scene-persistence`, v0.2.3), and FX baseline
+`6a93967c9499f4e72e24b2e21cdad4b3b4428926` (branch `integration/v0.2.0`,
+v0.2.2) -- all unchanged (all edits below are uncommitted working-tree
+changes, left for Codex's own review/bench/checkpoint). **Compiled and
+verified via five clean builds (application, Composer's own `ci_harness`,
+`esp_pixels_fx`'s own `ci_harness`, the expanded `pixels_scene_test`, and
+the independent `pixels_adapter_test` runner); none of this has been
+executed on real hardware yet.**
+
+Three new `esp_pixels_fx` v0.2.3 effects, ids appended right after Stripes
+(verified the actual registry first, per the task's own instruction --
+5 was free, no renumbering): `Blink` (6, BOTH, hard color1/color2 half-cycle
+alternation), `Breathe` (7, BOTH, smooth `sin8()`-driven color1<->color2
+interpolation), `Chase` (8, 1D, Stripes' own band/gap/phase formula in
+motion). Composer needed no production change at all -- only focused
+integration tests, per the task's own "Composer changes are limited to
+focused integration tests unless a concrete defect is found," and no
+concrete defect was found. See `esp_pixels_fx`'s own README (`v0.2.3`,
+including the EasyLED-facing catalog table with every raw control meaning)
+for the full per-effect contract; not restated here.
+
+### Timing contract (new to this delivery)
+
+Blink/Breathe/Chase are this library's first effects with genuine, smooth,
+per-instance animation timing (WipeOnce already had one-shot Q16.16
+motion; Sinelon's own `beatsin16` reads absolute `now_ms` directly, with no
+deterministic-restart promise). All three reuse WipeOnce's own established
+technique, duplicated locally per file (never a shared timing module, per
+the task's own "do not refactor old effects to share new timing
+infrastructure"): a 32-bit last-seen `now_ms` packed into `rt.step`+
+`rt.aux0`, a delta computed each call via wrap-safe unsigned subtraction,
+committed unconditionally (so a paused/static frame's own next resume
+measures from THAT call, never a catch-up burst), and progress held in
+`rt.aux1`, always wrapped modulo a bounded value (`period_ms` for Blink/
+Breathe, `period*1000` for Chase's exact milli-cell count) so it can never
+overflow regardless of uptime. `rt.call==0` always resets to the
+deterministic start state, regardless of the absolute `now_ms` a fresh
+segment happens to see first. Verified directly: restart determinism,
+no advance on a repeated timestamp, identical phase for the same elapsed
+time across different render cadences, and correct behavior across a real
+`uint32_t now_ms` wraparound -- see `esp_pixels_fx`'s own `test_blink.cpp`
+for the full battery (not repeated per-effect at the same depth in
+`test_breathe.cpp`/`test_chase.cpp`, which focus on what differs: the blend
+curve and the spatial motion, respectively).
+
+### Persistence — no code change needed
+
+Same situation as the custom-parameters delivery: `scene_codec.cpp` never
+validates `effect_id` against a known-ids list (opaque byte, checked only
+by `Composer::applyConfig()`'s own `fx::describe()` call, a separate, later
+consumer), and no record layout changed -- appending three more registered,
+dimension/work-compatible ids needs no catalog bump, no schema5, verified
+against the actual code, not assumed. Schema stays at 4; scene 1295 B/
+preset 1348 B maximums are unchanged (the existing maximum-size round-trip
+tests, now also cycling `effect_id` through all eight registered ids,
+`i % 8`, confirm `record.size` stays exactly the same). The Mirror
+delivery's own preset-handler stack fix
+(`main/presets_at.cpp`'s `static AtScene` scratch, no `=AtScene{}` reset
+temporary) was verified intact; that file was never opened for editing.
+
+### Test coverage added
+
+- `esp_pixels_fx`'s own `test/test_blink.cpp` (new): metadata; exact
+  half-cycle boundaries at `speed=255` (period 200ms, hand-traced through
+  the delta-accumulation algorithm itself, not just the formula) and at
+  `speed=1` (period 5000ms); `speed==0`'s exact static color1; real 2D
+  (BOTH) multi-row rendering; complete redraw; independent per-runtime
+  state; restart determinism; no advance on a repeated timestamp; a real
+  `uint32_t` clock rollover landing exactly on the half-cycle boundary; and
+  two different render cadences reaching the identical phase for the same
+  total elapsed time.
+- `test/test_breathe.cpp` (new): metadata; `speed==0`'s EXACT (not
+  approximated) static color1; the cycle's own start/quarter/half points
+  hand-traced through normalized `sin8()` and the local `lerp8`/`lerpCrgb`;
+  the normalization maps `sin8()`'s native 1..255 range to 0..255 so both
+  requested endpoint colors are reached exactly; real 2D rendering; complete redraw;
+  independent runtimes; restart/repeated-timestamp/rollover (reusing
+  `test_blink.cpp`'s own timeline, not re-derived).
+- `test/test_chase.cpp` (new): metadata; `speed==0` byte-identical to
+  Stripes' own static output; the exact direction of motion (hand-traced
+  against "new[x] == prior pattern at x-1" for every cell, not sampled);
+  wrap at the period including a non-period-multiple width; boundary
+  custom values (band=gap=256, phase=255) together with real motion;
+  source width 1 with motion; complete redraw; independent runtimes;
+  restart/repeated-timestamp/rollover, exact speed-255 rate and identical
+  phase across different render cadences.
+- `esp_pixels_composer`'s own `ci_harness` (`test/test_composer.cpp`):
+  three new integration gates reusing the Stripes gates' own exact
+  technique -- Chase through Composer's real Mirror/reverse fold (at
+  `now_ms==0`, its own animation-phase-zero, byte-identical to the
+  already-verified Stripes fold tables); Chase crossing two `FakeSink`
+  outputs, rendered twice (`now_ms=0` then `1000`) to prove real motion
+  reaches the routed, composed output on both sides of the boundary; and a
+  genuine 2D Blink segment (`addSegment2D`) through a real `setLedmap()`
+  canvas, proving `FX_DIM_BOTH`'s own real 2D iteration reaches ledmap
+  resolution, not just a raw `Surface`.
+- `test/test_composer_at.cpp`: one new gate reusing the existing staged-
+  setter/persistence machinery -- stages `FX_CHASE` through the REAL
+  `AT+SEGSET`/`AT+SEGSPEED`/`AT+SEGCUSTOM1/2/3`/`AT+SEGCOL`/`AT+SEGCOL2`
+  setters, publishes, and reads every distinct value back through
+  `exportConfirmedScene()`; separately restores `FX_BREATHE` through
+  `attachAtPersistence()` -- proving both new effect ids survive a real AT
+  publish and a persistence round trip with their own distinct parameters.
+- `pixels_scene_test`'s own `test_scene.cpp`/`test_presets.cpp`: the
+  existing 32-segment maximum-size round trips now cycle `effect_id`
+  through all eight registered 1D-compatible ids (`i % 8`, via a
+  `sizeof`-derived count rather than a repeated magic number).
+
+No existing test was removed, weakened, or had its count assertion
+lowered. Static DRAM in `pixels_scene_test`: from the custom-parameters
+delivery's own bench-verified 2208 bytes free (178528/180736 used) to
+**2168 bytes free (178568/180736 used, 98.8%)** -- only 40 bytes consumed
+by three effects' worth of new unit tests plus four Composer integration
+gates, none of them adding a new `static`. No coverage was dropped to fit;
+no runner split was needed. Codex's review found and fixed Breathe's inexact
+start color and Chase's cadence-dependent fractional rounding. The expanded
+scene runner then executed in ESP32 QEMU with **7490 checks, zero failures**.
+Binary sizes after review: application 263776 bytes; `pixels_scene_test`
+610832 bytes; Composer `ci_harness` 459120 bytes; `esp_pixels_fx`
+`ci_harness` 143280 bytes; `pixels_adapter_test` 188816 bytes. Physical WROOM
+execution remains pending until the target responds on COM6.
+
+### Proposed bench sequence (not yet run)
+
+Uses the currently connected GPIO16/50 strip and the three new effects.
+GPIO17/12 is physically inactive; the optional crossing step explicitly
+requires reconnecting it first. **Use a BACKED-UP EXISTING position (e.g. Pos100) for any
+temporary staging, never a 101st name; restore all 100 originals and finish
+on LED34 red (Pos100)**, exactly like the prior four deliveries.
+
+1. Verify backups of the current NVS/preset partitions before changes.
+   Flash the application and the expanded `pixels_scene_test`; run both;
+   restore the application afterward. Run the independent adapter suite
+   too; the combined suite counts must retain at least the 7260 baseline
+   checks, with zero failures.
+2. `AT+SEGCLR`, `AT+SEGSET=1,0,30,6` (Blink, `effect_id=6`, GPIO16's own
+   first 30 pixels), `AT+SEGCOL=1,255,0,0`, `AT+SEGCOL2=1,0,0,255`,
+   `AT+SEGSPEED=1,1` (slowest, ~5s period), `AT+SEGPUB` -- confirm a slow,
+   clearly visible red/blue alternation with a hard cutover.
+3. `AT+SEGSET=1,0,30,7` (Breathe, `effect_id=7`), `AT+SEGCOL=1,255,0,0`,
+   `AT+SEGCOL2=1,0,0,255`, `AT+SEGSPEED=1,1`, `AT+SEGPUB` -- confirm the
+   SAME red/blue transition now fades smoothly, never snapping, at the
+   same slow period as step 2.
+4. `AT+SEGSET=1,0,30,8` (Chase, `effect_id=8`), `AT+SEGCOL=1,255,0,0`,
+   `AT+SEGCOL2=1,0,0,255`, `AT+SEGCUSTOM1=1,2`, `AT+SEGCUSTOM2=1,3`,
+   `AT+SEGCUSTOM3=1,0`, `AT+SEGSPEED=1,1` (1 cell/sec, easy to watch),
+   `AT+SEGPUB` -- confirm the red/blue Stripes-style bands crawl toward
+   the high end of the strip, one visible cell per second.
+5. `AT+SEGSPEED=1,255`, `AT+SEGPUB` -- confirm Chase speeds up to a fast,
+   continuous crawl (64 cells/sec) in the SAME direction, never reversing.
+6. Mirror interaction: `AT+SEGSET=1,0,30,8`, `AT+SEGCUSTOM1=1,2`,
+   `AT+SEGCUSTOM2=1,3`, `AT+SEGCUSTOM3=1,0`, `AT+SEGSPEED=1,1`,
+   `AT+SEGMIRROR=1,1`, `AT+SEGPUB` -- confirm the moving band pattern now
+   folds symmetrically about the segment's own midpoint (N=30, M=15) while
+   still animating, the same fold contract the Mirror delivery's own bench
+   sequence already demonstrated with static effects.
+7. Optional after reconnecting GPIO17/12 and confirming the two-output
+   topology: `AT+SEGSET=2,40,60,8`
+   (Chase spanning GPIO16's own tail and GPIO17's own head at the identity
+   boundary index 50), `AT+SEGCOL=2,0,255,0`, `AT+SEGCOL2=2,0,0,0`,
+   `AT+SEGCUSTOM1=2,2`, `AT+SEGCUSTOM2=2,2`, `AT+SEGCUSTOM3=2,0`,
+   `AT+SEGSPEED=2,10`, `AT+SEGPUB` -- confirm the moving green/black bands
+   cross the output boundary continuously, no seam, no reset, no stall.
+8. Save the active scene to the BACKED-UP Pos100 FIRST, then disable/
+   publish to black and use `AT+PRESETLOAD=Pos100` to confirm recall
+   (including Blink/Breathe/Chase's own IDs and every distinct
+   speed/color/custom value -- animation restarts fresh on recall, compare
+   the controls, not the exact animation phase); separately `AT+RESET` and
+   verify the saved current scene recovers identically.
+9. Restore all 100 original presets from backup, recall Pos001..Pos100
+   with geometry/color checks, and finish on Pos100 -- IDENTITY map,
+   LED34 red, brightness 96, GPIO17 black, exactly as the task's own
+   baseline describes. Keep serial captures throughout; builds and
+   physical observation are recorded separately.
+
 ## Known gaps
 
 Review on 2026-09-14 fixed incompatible presets being cataloged as free,
