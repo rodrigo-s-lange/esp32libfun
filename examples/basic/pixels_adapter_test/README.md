@@ -13,3 +13,7 @@ own custom partition table. Do not erase flash/NVS. Success is the recurring
 Executed 2026-09-14 on WROOM/COM6: **172 checks, zero failures**, GPIO4/5
 disconnected. The root application was restored afterward. Capture:
 `build-wroom-rmt-safe/bench-outputs-20260914/adapter-tests.log` in the root.
+
+Repeated 2026-09-27 before the final firmware restore: **172 checks, zero
+failures**, with no panic or unexpected reset. Capture:
+`build/wroom-serial-20260927.log`.

@@ -341,7 +341,7 @@ Any future addition to this specific binary should re-measure this margin
 before assuming it still fits; the margin is now even tighter than the
 Mirror delivery's own already-tight report.
 
-### Blink, Breathe and Chase — reviewed and executed in QEMU, WROOM pending (27/09/26)
+### Blink, Breathe and Chase — reviewed and executed in QEMU and WROOM (27/09/26)
 
 No `scene_codec.*`/`preset_codec.*` change: `effect_id` is an opaque byte,
 never validated against a known-ids list at the codec level (verified
@@ -381,7 +381,9 @@ fit, no runner split was needed. Codex's review found and fixed two concrete
 effect defects before hardware: Breathe now reaches color1 exactly at the
 start/full-cycle boundary, and Chase uses exact milli-cell accumulation so
 different render cadences reach the same phase. The complete image executed
-in ESP32 QEMU with **7490 checks, zero failures**. WROOM execution remains
-pending because COM6 enumerates but the target is not responding to reset.
+in ESP32 QEMU with **7490 checks, zero failures**. The same image then ran on
+WROOM/COM6 with **7490 checks, zero failures**, no panic, and application
+version `v0.1.2-26-g29b7024`; capture:
+`build/wroom-serial-20260927.log`. Visual confirmation remains separate.
 Binary size: 610832 bytes. Any future addition to this specific
 binary should re-measure this margin before assuming it still fits.

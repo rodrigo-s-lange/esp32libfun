@@ -1222,7 +1222,7 @@ Pos100**, exactly like the prior three deliveries.
    describes. Keep serial captures throughout; builds and physical
    observation are recorded separately.
 
-## Blink, Breathe and Chase — implemented, compiled, awaiting Codex's bench (22/09/26 - 02:53PM)
+## Blink, Breathe and Chase — reviewed and bench-verified (27/09/26)
 
 Claude implemented this brief (`docs/pixels-effects-batch-task.md`) against
 app baseline `4d8c1ac99ffdefd2ba1c2cb9a607b6fedf00c882` (branch
@@ -1230,12 +1230,12 @@ app baseline `4d8c1ac99ffdefd2ba1c2cb9a607b6fedf00c882` (branch
 `d575dbe06ff713a954c13fbac60f58ba43613f4d` (branch
 `feature/at-scene-persistence`, v0.2.3), and FX baseline
 `6a93967c9499f4e72e24b2e21cdad4b3b4428926` (branch `integration/v0.2.0`,
-v0.2.2) -- all unchanged (all edits below are uncommitted working-tree
-changes, left for Codex's own review/bench/checkpoint). **Compiled and
-verified via five clean builds (application, Composer's own `ci_harness`,
-`esp_pixels_fx`'s own `ci_harness`, the expanded `pixels_scene_test`, and
-the independent `pixels_adapter_test` runner); none of this has been
-executed on real hardware yet.**
+v0.2.2). Codex reviewed and checkpointed the result as FX `e38a601`,
+Composer `d6a4f9e`, and application `29b7024`. **Five clean builds passed
+(application, Composer's own `ci_harness`, `esp_pixels_fx`'s own
+`ci_harness`, the expanded `pixels_scene_test`, and the independent
+`pixels_adapter_test` runner). The two hardware runners were then executed
+on WROOM/COM6 on 27/09/26.**
 
 Three new `esp_pixels_fx` v0.2.3 effects, ids appended right after Stripes
 (verified the actual registry first, per the task's own instruction --
@@ -1347,22 +1347,28 @@ start color and Chase's cadence-dependent fractional rounding. The expanded
 scene runner then executed in ESP32 QEMU with **7490 checks, zero failures**.
 Binary sizes after review: application 263776 bytes; `pixels_scene_test`
 610832 bytes; Composer `ci_harness` 459120 bytes; `esp_pixels_fx`
-`ci_harness` 143280 bytes; `pixels_adapter_test` 188816 bytes. Physical WROOM
-execution remains pending until the target responds on COM6.
+`ci_harness` 143280 bytes; `pixels_adapter_test` 188816 bytes. On WROOM/COM6,
+the adapter runner passed **172 checks with zero failures** and the combined
+scene runner passed **7490 checks with zero failures** on application version
+`v0.1.2-26-g29b7024`. Captures are in
+`examples/basic/pixels_adapter_test/build/wroom-serial-20260927.log` and
+`examples/basic/pixels_scene_test/build/wroom-serial-20260927.log`. Visual
+confirmation of the three animations remains a separate observer gate.
 
-### Proposed bench sequence (not yet run)
+### Visual bench sequence (objective runners complete; observation pending)
 
 Uses the currently connected GPIO16/50 strip and the three new effects.
 GPIO17/12 is physically inactive; the optional crossing step explicitly
-requires reconnecting it first. **Use a BACKED-UP EXISTING position (e.g. Pos100) for any
-temporary staging, never a 101st name; restore all 100 originals and finish
-on LED34 red (Pos100)**, exactly like the prior four deliveries.
+requires reconnecting it first. The 100 local positions are a disposable
+cache for presets authored by the future frontend; use any temporary name
+and remove it after the visual sequence.
 
-1. Verify backups of the current NVS/preset partitions before changes.
-   Flash the application and the expanded `pixels_scene_test`; run both;
-   restore the application afterward. Run the independent adapter suite
-   too; the combined suite counts must retain at least the 7260 baseline
-   checks, with zero failures.
+1. Completed 27/09/26: full 4 MiB backup SHA-256
+   `49ffc8028ddb251036a8c3120b8d98fa9cf418bea19ecdbf765355269c10319d`;
+   adapter 172/0; scene runner 7490/0; final application restored. The old
+   OTA layout was migrated to the current single-app layout, preserving the
+   existing main NVS configuration and initializing the disposable preset
+   cache at 0/100.
 2. `AT+SEGCLR`, `AT+SEGSET=1,0,30,6` (Blink, `effect_id=6`, GPIO16's own
    first 30 pixels), `AT+SEGCOL=1,255,0,0`, `AT+SEGCOL2=1,0,0,255`,
    `AT+SEGSPEED=1,1` (slowest, ~5s period), `AT+SEGPUB` -- confirm a slow,
