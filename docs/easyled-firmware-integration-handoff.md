@@ -138,11 +138,13 @@ Implementamos um componente pertencente à aplicação, em exemplo independente:
   A regra provisória de deduplicação já foi fornecida pela EasyLED: um comando
   terminal repetido não é reexecutado e republica seu resultado terminal original.
 
-O build independente passou em ESP-IDF 6.0.2, e a montagem de mensagens foi
-executada no simulador. **Ainda não estão entregues:** bootstrap/claim do produto,
-parser e execução dos comandos EasyLED, download HTTPS de configuração, staging
-durável remoto, acknowledgements de negócio, publicação do estado no formato
-EasyLED, OTA/rollback e integração de rede com renderização em um único firmware.
+O build independente passou em ESP-IDF 6.0.2. A montagem de mensagens e a
+fronteira offline do contrato foram executadas no simulador: parser limitado do
+envelope, SHA-256 exato, serialização de eventos e interfaces de journal/staging.
+**Ainda não estão entregues:** bootstrap/claim do produto, executor dos comandos,
+download HTTPS de configuração, implementação concreta do staging durável,
+acknowledgements de negócio, publicação do estado no formato EasyLED,
+OTA/rollback e integração de rede com renderização em um único firmware.
 
 A aplicação de bancada usa partição de aplicação única, sem slots OTA. O exemplo
 de rede possui outra tabela de partições. A integração deverá decidir o layout
@@ -273,16 +275,17 @@ conecta com identidade própria, recebe uma configuração válida, confirma o
 resultado real e continua renderizando após perder a rede ou reiniciar. Essa é
 uma proposta de sequência para alinhamento, não uma afirmação de integração pronta.
 
-Enquanto vocês retornam, a frente de firmware pode avançar no build conjunto de
-pixels + rede e no orçamento de memória; a Claude segue com Blink/Breathe/Chase.
-Nenhuma alteração no repositório EasyLED é necessária para preparar essas frentes.
+Enquanto vocês retornam, a frente de firmware avança no executor local dos
+comandos e payloads provisórios. Blink/Breathe/Chase já passaram por revisão,
+QEMU, WROOM e confirmação visual. Nenhuma alteração no repositório EasyLED é
+necessária para este próximo incremento offline.
 
 ## Referências locais da entrega
 
 - [Aplicação de pixels e evidências de bancada](../main/README.md)
 - [Sessão independente de conectividade](../examples/basic/pixels_network_session/README.md)
 - [Roadmap acordado](pixels-roadmap.md)
-- [Briefing da próxima entrega de efeitos](pixels-effects-batch-task.md)
+- [Briefing do executor local EasyLED](easyled-command-executor-task.md)
 
 **Próximo retorno solicitado:** fechar schema de segmentos/catálogo, bytes
 canônicos, política do cache de presets, deduplicação durável, partições/OTA e

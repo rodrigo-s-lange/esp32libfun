@@ -1,29 +1,31 @@
 # EasyLED / pixels roadmap
 
-Updated through the 2026-09-22 delivery alignment. This roadmap belongs to the product
+Updated through the 2026-09-28 firmware checkpoint. This roadmap belongs to the product
 application and external pixels libraries; it does not expand the HAL core.
 
 ## Validated baseline
 
-- Composer `d575dbe06ff713a954c13fbac60f58ba43613f4d`: two physical
+- Composer `17b5e9a6ef6e9701b1336bfd9cc03470173c8449`: two physical
   adapter outputs, managed rendering, 1D/2D segments, AT controls and
   confirmed-scene export/load, symmetric 1D mirror and three custom AT controls.
-- FX `6a93967c9499f4e72e24b2e21cdad4b3b4428926`: XYGradient and Stripes
-  validated on the bench; old effect IDs retained.
-- Application: this local custom-parameter checkpoint, extending Mirror and the 2D checkpoint
-  `d6e5665`, multiple outputs and named presets. All remain unreleased.
-- WROOM-32 / COM6: GPIO16 with 50 and GPIO17 with 12 WS2812 RGB pixels,
-  both GRB, 115200 baud. Output configuration survives reboot.
-- 7260 executed checks passed (7088 scene/AT/preset/output/map/XY/Stripes, 172 adapter).
+- FX `9de81da4848df09be3b2c5aa4156a1e160ceb84c`: effects 0..8,
+  including XYGradient, Stripes, Blink, Breathe and Chase; old IDs retained.
+- Application `8e9c475f30784011d814711706353cb5d8fe5899`: named presets,
+  multiple outputs, 2D, Mirror, custom controls, effects 0..8 and the offline
+  EasyLED firmware-contract boundary. All remain unreleased.
+- WROOM-32 / COM6: GPIO16 with 50 WS2812 RGB pixels, GRB, 115200 baud.
+  GPIO17/12 is currently physically inactive. Output configuration survives reboot.
+- 7662 executed hardware checks passed (7490 combined scene/AT/persistence/
+  effects and 172 adapter), both with zero failures.
   The prior real-NVS run passed 201 maximum-size 1348-byte writes, full-store replacement,
   rejection of a 101st name, and 100 recalls after reboot. The original
-  preset partition was restored and verified against its backup.
+  preset partition was restored and verified against its backup at that checkpoint.
 - Rodrigo confirmed virtual 5x10 row/column routing, X/Y/mixed gradients,
   progressive/serpentine mapping and blackout/preset/reboot recovery on the
   straight 50-pixel strip (2026-09-16, reaffirmed 2026-09-21). The earlier
   two-output boundary demonstration remains validated. All 100 original
   presets then passed serial geometry/color checks. Last bench state:
-  IDENTITY, Pos100 (LED 34 red, second output black), brightness 96.
+  IDENTITY, no active scene, GPIO16/50, disposable preset cache 0/100.
 - Rodrigo also confirmed even50/odd49 Mirror, reverse interaction, Sinelon
   crossing both outputs and blackout/preset/reboot recovery. Legacy recall
   exposed an AT-task stack overflow; redundant whole-scene temporaries were
@@ -35,6 +37,13 @@ application and external pixels libraries; it does not expand the HAL core.
   blackout/preset/reboot recovery. Original partitions were restored and
   verified; he confirmed final LED34 red. Suite fixture corrections required
   no production change. Scene-runner static DRAM headroom: 2208 B.
+- Blink/Breathe/Chase passed 7490 combined checks in QEMU and on WROOM.
+  Rodrigo confirmed the hard blink, smooth breathe, Chase direction at slow/
+  fast rates and persisted blackout after reboot on GPIO16/50 on 28/09/26.
+- The offline EasyLED boundary parses the four closed command types, verifies
+  exact-byte SHA-256, serializes events and exposes durable journal/staging
+  interfaces. Its focused QEMU target passed 52 checks. It does not yet apply
+  downloaded config/preset payloads or provide live HTTPS/broker integration.
 
 ## Delivery order
 
@@ -50,7 +59,9 @@ here does not establish an agreed exclusion from the MVP.
 | 3 — local checkpoint | 2D / ledmap through AT and persistence | Delivered: 6352 automated hardware checks, real-NVS maximum-size capacity/replacement and visual confirmation of virtual 5x10 coordinates, XYGradient, progressive/serpentine mapping and preset/reboot recovery. Original 100 presets restored and verified. |
 | 4 — local checkpoint | Symmetric mirror per segment | Delivered: 6760 hardware checks, even/odd symmetry, reverse interaction, cross-output animation and preset/reboot recovery visually confirmed. Legacy recall stack overflow corrected in the application. |
 | 5 — local checkpoint | Custom effect parameters via AT + Stripes | Delivered: 7260 automated checks, serial and visual custom controls, Mirror/reverse, crossing and preset/reboot recovery. All 100 originals restored and verified; final LED34 red confirmed. |
-| 6 | Expand the effect catalog | Deliver small batches of useful effects with appropriate controls, examples and physical checks; include 2D effects as the panel capability develops. |
+| 6 — local checkpoint | Expand the effect catalog: Blink, Breathe, Chase | Delivered: ids 6..8, deterministic timing fixes, 7490 hardware checks and visual confirmation on GPIO16/50. |
+| 7 — local checkpoint | Offline EasyLED firmware-contract boundary | Delivered: bounded envelope parser, SHA-256, events and durable interfaces; 52 QEMU checks. |
+| 8 — next | Offline EasyLED command executor | Parse provisional payloads, enforce transaction/event ordering, deduplicate and activate through a real Composer target without requiring live MQTT/HTTPS. |
 
 The Composer engine already supports 2D/ledmaps/multiple outputs in C++.
 The reviewed `adapter_esp_pixels` supports two physical RGB outputs. The
@@ -116,9 +127,10 @@ operator visual confirmation. Announce and obtain confirmation before visual
 changes; arrange extra output wiring with Rodrigo before touching hardware.
 Do not infer push/tag/flash authorization from an earlier delivery.
 
-Next brief: [Blink, Breathe and Chase](pixels-effects-batch-task.md), while the
-EasyLED team aligns product payloads and catalog entries with firmware capabilities.
-Completed briefs: [custom effect parameters via AT](pixels-custom-params-task.md),
+Next brief: [offline EasyLED command executor](easyled-command-executor-task.md),
+while the EasyLED team closes the remaining canonical payload and delivery contracts.
+Completed briefs: [Blink, Breathe and Chase](pixels-effects-batch-task.md),
+[custom effect parameters via AT](pixels-custom-params-task.md),
 [symmetric mirror](pixels-mirror-task.md),
 [2D canvas / ledmap](pixels-2d-task.md),
 [multiple physical outputs](pixels-outputs-task.md) and
