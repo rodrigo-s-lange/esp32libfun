@@ -384,6 +384,9 @@ different render cadences reach the same phase. The complete image executed
 in ESP32 QEMU with **7490 checks, zero failures**. The same image then ran on
 WROOM/COM6 with **7490 checks, zero failures**, no panic, and application
 version `v0.1.2-26-g29b7024`; capture:
-`build/wroom-serial-20260927.log`. Visual confirmation remains separate.
+`build/wroom-serial-20260927.log`. On 28/09/26 Rodrigo visually confirmed
+Blink's hard red/blue cut, Breathe's smooth transition, Chase moving in the
+expected direction at slow and fast rates, and blackout recovery after reboot
+on GPIO16/50.
 Binary size: 610832 bytes. Any future addition to this specific
 binary should re-measure this margin before assuming it still fits.

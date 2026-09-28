@@ -1352,16 +1352,24 @@ the adapter runner passed **172 checks with zero failures** and the combined
 scene runner passed **7490 checks with zero failures** on application version
 `v0.1.2-26-g29b7024`. Captures are in
 `examples/basic/pixels_adapter_test/build/wroom-serial-20260927.log` and
-`examples/basic/pixels_scene_test/build/wroom-serial-20260927.log`. Visual
-confirmation of the three animations remains a separate observer gate.
+`examples/basic/pixels_scene_test/build/wroom-serial-20260927.log`. On
+28/09/26 Rodrigo visually confirmed Blink's hard red/blue cut, Breathe's
+smooth red/blue transition, Chase moving in the expected direction at slow
+and fast rates, and the persisted blackout after reboot on GPIO16/50.
 
-### Visual bench sequence (objective runners complete; observation pending)
+### Visual bench sequence (core smoke completed; extended interactions optional)
 
 Uses the currently connected GPIO16/50 strip and the three new effects.
 GPIO17/12 is physically inactive; the optional crossing step explicitly
 requires reconnecting it first. The 100 local positions are a disposable
 cache for presets authored by the future frontend; use any temporary name
 and remove it after the visual sequence.
+
+The core smoke was completed and confirmed by Rodrigo on 28/09/26: full-strip
+Blink and Breathe at speed 64, Chase with 2-red/3-blue bands at speeds 32 and
+255, then persisted blackout and reboot recovery. Mirror and the optional
+two-output crossing remain covered by permanent automated tests and their
+earlier dedicated bench runs; they were not repeated in this smoke test.
 
 1. Completed 27/09/26: full 4 MiB backup SHA-256
    `49ffc8028ddb251036a8c3120b8d98fa9cf418bea19ecdbf765355269c10319d`;
