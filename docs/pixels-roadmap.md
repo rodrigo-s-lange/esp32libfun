@@ -10,9 +10,10 @@ application and external pixels libraries; it does not expand the HAL core.
   confirmed-scene export/load, symmetric 1D mirror and three custom AT controls.
 - FX `9de81da4848df09be3b2c5aa4156a1e160ceb84c`: effects 0..8,
   including XYGradient, Stripes, Blink, Breathe and Chase; old IDs retained.
-- Application `8e9c475f30784011d814711706353cb5d8fe5899`: named presets,
-  multiple outputs, 2D, Mirror, custom controls, effects 0..8 and the offline
-  EasyLED firmware-contract boundary. All remain unreleased.
+- Application branch `checkpoint/wroom-composer-app`: named presets, multiple
+  outputs, 2D, Mirror, custom controls, effects 0..8, the offline EasyLED
+  firmware-contract boundary, command executor and durable command storage.
+  All remain unreleased.
 - WROOM-32 / COM6: GPIO16 with 50 WS2812 RGB pixels, GRB, 115200 baud.
   GPIO17/12 is currently physically inactive. Output configuration survives reboot.
 - 7662 executed hardware checks passed (7490 combined scene/AT/persistence/
@@ -40,10 +41,13 @@ application and external pixels libraries; it does not expand the HAL core.
 - Blink/Breathe/Chase passed 7490 combined checks in QEMU and on WROOM.
   Rodrigo confirmed the hard blink, smooth breathe, Chase direction at slow/
   fast rates and persisted blackout after reboot on GPIO16/50 on 28/09/26.
-- The offline EasyLED boundary parses the four closed command types, verifies
-  exact-byte SHA-256, serializes events and exposes durable journal/staging
-  interfaces. Its focused QEMU target passed 52 checks. It does not yet apply
-  downloaded config/preset payloads or provide live HTTPS/broker integration.
+- The offline EasyLED path parses the four closed command types, verifies
+  exact-byte SHA-256, validates config/preset payloads, drives a real Composer
+  candidate and enforces terminal event/rollback ordering. Its NVS-backed
+  eight-entry terminal journal and 8192-byte A/B staging recover across reboot.
+  The focused QEMU target passed 259 checks. The combined network application
+  builds with the component, but `main.cpp` does not yet route live MQTT/HTTPS
+  traffic into the executor.
 
 ## Delivery order
 
@@ -61,7 +65,9 @@ here does not establish an agreed exclusion from the MVP.
 | 5 — local checkpoint | Custom effect parameters via AT + Stripes | Delivered: 7260 automated checks, serial and visual custom controls, Mirror/reverse, crossing and preset/reboot recovery. All 100 originals restored and verified; final LED34 red confirmed. |
 | 6 — local checkpoint | Expand the effect catalog: Blink, Breathe, Chase | Delivered: ids 6..8, deterministic timing fixes, 7490 hardware checks and visual confirmation on GPIO16/50. |
 | 7 — local checkpoint | Offline EasyLED firmware-contract boundary | Delivered: bounded envelope parser, SHA-256, events and durable interfaces; 52 QEMU checks. |
-| 8 — next | Offline EasyLED command executor | Parse provisional payloads, enforce transaction/event ordering, deduplicate and activate through a real Composer target without requiring live MQTT/HTTPS. |
+| 8 - local checkpoint | Offline EasyLED command executor | Delivered: provisional payload adapter, ordered execution, duplicate replay, rollback and real Composer activation; 153 QEMU checks before the storage increment. |
+| 9 - local checkpoint | Durable EasyLED command storage | Delivered: dedicated NVS partition, immutable eight-entry terminal journal, 8192-byte A/B staging, terminal-aware reboot recovery and corruption rejection; full focused target now passes 259 QEMU checks. |
+| 10 - next | Wire the local control task | Instantiate executor/storage in the combined app, keep work outside MQTT callbacks, add concrete payload/event/time/active-target adapters and publish state. |
 
 The Composer engine already supports 2D/ledmaps/multiple outputs in C++.
 The reviewed `adapter_esp_pixels` supports two physical RGB outputs. The
@@ -87,16 +93,15 @@ The agreed transport is MQTT commands/state/events with HTTPS payload delivery
 and local rendering, including offline operation. Product-specific network
 orchestration belongs to EasyLED firmware, consuming the libraries directly.
 
-The next integration increment must align backend payloads with the capabilities
-already delivered here: mirror/reverse, three custom bytes, color-source
-selection and the effects appended after IDs 0..2. EasyLED's current segment
-model does not yet carry those controls. Preserve effect IDs and metadata;
-add catalog updates through a new migration in that repository. Also make the
-mapping between backend preset UUID/version and the device's 100 local
-positions explicit. Its full embedded ledmap and capability manifest must
-use the real Composer/output limits, not assume the bench's rectangular map
-descriptor is the complete product contract. Backend delivery/bootstrap and
-command pipelines remain tracked in EasyLED's existing issues; this review
+The next integration increment must wire the already validated executor and
+storage into the combined application's control task while EasyLED aligns its
+payloads with the capabilities delivered here: mirror/reverse, three custom
+bytes, color-source selection and effects appended after IDs 0..2. Preserve
+effect IDs and metadata. The 100 local positions are a disposable device cache;
+the product contract still needs an explicit mapping from backend preset UUID
+and checksum to a cache position. The full embedded ledmap and capability
+manifest must use the real Composer/output limits. Backend delivery/bootstrap
+and command pipelines remain tracked in EasyLED's existing issues; this review
 does not claim those integrations have already run on the device.
 
 Custom parameters/Stripes have passed review, hardware execution and operator
@@ -127,9 +132,11 @@ operator visual confirmation. Announce and obtain confirmation before visual
 changes; arrange extra output wiring with Rodrigo before touching hardware.
 Do not infer push/tag/flash authorization from an earlier delivery.
 
-Next brief: [offline EasyLED command executor](easyled-command-executor-task.md),
-while the EasyLED team closes the remaining canonical payload and delivery contracts.
-Completed briefs: [Blink, Breathe and Chase](pixels-effects-batch-task.md),
+Next increment: wire the validated executor and durable storage into the
+combined application's control task while the EasyLED team closes the remaining
+canonical payload and delivery contracts. Completed briefs:
+[offline EasyLED command executor](easyled-command-executor-task.md),
+[Blink, Breathe and Chase](pixels-effects-batch-task.md),
 [custom effect parameters via AT](pixels-custom-params-task.md),
 [symmetric mirror](pixels-mirror-task.md),
 [2D canvas / ledmap](pixels-2d-task.md),
