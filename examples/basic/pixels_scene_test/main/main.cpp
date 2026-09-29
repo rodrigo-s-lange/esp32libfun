@@ -27,6 +27,12 @@ extern int run_breathe_tests();
 extern int breathe_check_count();
 extern int run_chase_tests();
 extern int chase_check_count();
+extern int run_meteor_tests();
+extern int meteor_check_count();
+extern int run_twinkle_tests();
+extern int twinkle_check_count();
+extern int run_running_lights_tests();
+extern int running_lights_check_count();
 
 extern "C" void app_main()
 {
@@ -48,17 +54,21 @@ extern "C" void app_main()
     const int blink = run_blink_tests();
     const int breathe = run_breathe_tests();
     const int chase = run_chase_tests();
+    const int meteor = run_meteor_tests();
+    const int twinkle = run_twinkle_tests();
+    const int running_lights = run_running_lights_tests();
     const int count = composer_check_count() + composer_at_check_count() + scene_check_count() +
         preset_check_count() + output_check_count() + map_check_count() + xy_gradient_check_count() +
-        stripes_check_count() + blink_check_count() + breathe_check_count() + chase_check_count();
+        stripes_check_count() + blink_check_count() + breathe_check_count() + chase_check_count() +
+        meteor_check_count() + twinkle_check_count() + running_lights_check_count();
+    const int total_failed = core + at + scene + preset + outputs + map + xy + stripes + blink + breathe +
+        chase + meteor + twinkle + running_lights;
     for (;;) {
         ESP_LOGI("SCENE_TEST",
                  "core=%d AT=%d scene=%d preset=%d outputs=%d map=%d xy=%d stripes=%d blink=%d breathe=%d "
-                 "chase=%d checks=%d RESULT=%s",
-                 core, at, scene, preset, outputs, map, xy, stripes, blink, breathe, chase, count,
-                 core + at + scene + preset + outputs + map + xy + stripes + blink + breathe + chase == 0
-                     ? "ALL_PASS"
-                     : "FAIL");
+                 "chase=%d meteor=%d twinkle=%d running_lights=%d checks=%d RESULT=%s",
+                 core, at, scene, preset, outputs, map, xy, stripes, blink, breathe, chase, meteor, twinkle,
+                 running_lights, count, total_failed == 0 ? "ALL_PASS" : "FAIL");
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }

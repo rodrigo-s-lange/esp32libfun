@@ -72,7 +72,7 @@ here does not establish an agreed exclusion from the MVP.
 | 10 - local checkpoint | Wire the local control task | Delivered in `d60dd7`: concrete executor/storage/payload/event/time/activation adapters run outside MQTT callbacks in the combined application. |
 | 11 - local checkpoint | Publish EasyLED device telemetry | Delivered in `3b4955c`: retained state and boot/hourly capability reports with durable sequence/boot counters. |
 | 12 - local checkpoint | Prepare authenticated HTTPS payload source | Delivered in `d111055`: injected TLS client, bounds/timeout/checksum policy and fake-client validation; final wiring awaits backend artifacts. |
-| 13 - parallel task | Expand 1D effects: Meteor, Twinkle, RunningLights | Approved 2026-09-29; stable IDs 9..11, focused tests and a GPIO16/50 visual bench. Fire2012 remains separate because it requires Composer working-buffer support. |
+| 13 - local checkpoint | Expand 1D effects: Meteor, Twinkle, RunningLights | Implemented with stable IDs 9..11; 8136 scene/Composer/codec checks and 308 network-contract checks pass in ESP32 QEMU. GPIO16/50 visual bench remains pending. Fire2012 remains separate because it requires Composer working-buffer support. |
 | 14 - following task | Expand genuine 2D effects | Plasma, MatrixRain and Ripple after the 1D batch is checkpointed; use the existing ledmap/virtual-canvas path. |
 
 The Composer engine already supports 2D/ledmaps/multiple outputs in C++.
