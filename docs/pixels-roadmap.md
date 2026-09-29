@@ -45,9 +45,11 @@ application and external pixels libraries; it does not expand the HAL core.
   exact-byte SHA-256, validates config/preset payloads, drives a real Composer
   candidate and enforces terminal event/rollback ordering. Its NVS-backed
   eight-entry terminal journal and 8192-byte A/B staging recover across reboot.
-  The focused QEMU target passed 259 checks. The combined network application
-  builds with the component, but `main.cpp` does not yet route live MQTT/HTTPS
-  traffic into the executor.
+  The focused QEMU target now passes 308 checks. The combined application routes
+  complete MQTT commands through the executor with the embedded offline source,
+  publishes retained state/capability telemetry and has a reviewed injectable
+  HTTPS source. Live HTTPS config retrieval awaits the backend's exact fixture,
+  checksum header and error mapping.
 
 ## Delivery order
 
@@ -67,7 +69,11 @@ here does not establish an agreed exclusion from the MVP.
 | 7 — local checkpoint | Offline EasyLED firmware-contract boundary | Delivered: bounded envelope parser, SHA-256, events and durable interfaces; 52 QEMU checks. |
 | 8 - local checkpoint | Offline EasyLED command executor | Delivered: provisional payload adapter, ordered execution, duplicate replay, rollback and real Composer activation; 153 QEMU checks before the storage increment. |
 | 9 - local checkpoint | Durable EasyLED command storage | Delivered: dedicated NVS partition, immutable eight-entry terminal journal, 8192-byte A/B staging, terminal-aware reboot recovery and corruption rejection; full focused target now passes 259 QEMU checks. |
-| 10 - next | Wire the local control task | Instantiate executor/storage in the combined app, keep work outside MQTT callbacks, add concrete payload/event/time/active-target adapters and publish state. |
+| 10 - local checkpoint | Wire the local control task | Delivered in `d60dd7`: concrete executor/storage/payload/event/time/activation adapters run outside MQTT callbacks in the combined application. |
+| 11 - local checkpoint | Publish EasyLED device telemetry | Delivered in `3b4955c`: retained state and boot/hourly capability reports with durable sequence/boot counters. |
+| 12 - local checkpoint | Prepare authenticated HTTPS payload source | Delivered in `d111055`: injected TLS client, bounds/timeout/checksum policy and fake-client validation; final wiring awaits backend artifacts. |
+| 13 - parallel task | Expand 1D effects: Meteor, Twinkle, RunningLights | Approved 2026-09-29; stable IDs 9..11, focused tests and a GPIO16/50 visual bench. Fire2012 remains separate because it requires Composer working-buffer support. |
+| 14 - following task | Expand genuine 2D effects | Plasma, MatrixRain and Ripple after the 1D batch is checkpointed; use the existing ledmap/virtual-canvas path. |
 
 The Composer engine already supports 2D/ledmaps/multiple outputs in C++.
 The reviewed `adapter_esp_pixels` supports two physical RGB outputs. The
@@ -142,3 +148,9 @@ canonical payload and delivery contracts. Completed briefs:
 [2D canvas / ledmap](pixels-2d-task.md),
 [multiple physical outputs](pixels-outputs-task.md) and
 [named presets](pixels-presets-task.md).
+
+While the backend finishes its canonical HTTPS fixture/header/error package,
+the approved independent firmware task is
+[Meteor, Twinkle and RunningLights](pixels-effects-1d-batch2-task.md). It appends
+IDs 9..11 without changing transport or persistence contracts. The next effects
+task will be a separate genuine-2D batch.
