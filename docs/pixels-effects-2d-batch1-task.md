@@ -200,6 +200,31 @@ limitation explicitly. A later real-matrix smoke can close visual geometry
 without blocking this implementation/checkpoint. Visual changes occur only
 after Rodrigo says he is watching.
 
+## Hardware result — 2026-09-30
+
+Codex flashed the application on the WROOM/COM6 bench with GPIO16 driving 50
+pixels and used a progressive 5x10 logical canvas over the straight strip.
+Rodrigo confirmed Plasma (Ocean then Heat), MatrixRain (green/dark then
+magenta/blue) and Ripple (Party then Ice), including the requested parameter
+changes. Each effect remained visible for approximately ten to twelve seconds.
+The temporary `Pos100` save, explicit blackout, recall and reboot recovery all
+passed. The original NVS and preset partitions were then restored and their
+SHA-256 hashes matched the pre-test backups byte for byte.
+
+A separate bench-only autoplay image was subsequently flashed at Rodrigo's
+request. Every reset runs the same three-effect sequence and finishes on a live
+black Solid segment. Serial evidence ended with
+`PIXELS_DEMO: autoplay complete; holding black until reset`. The temporary
+autoplay source edit was removed after the image was built; it is not part of
+the production source or this task's implementation checkpoint. The saved
+bench image has SHA-256
+`854a2c18b2a3b747b7d5e01028d361a2851e1bdef08d3e00ef05999978a06ef1`.
+
+This hardware run validates mapping, transport, animation timing, palette and
+parameter changes, persistence and autonomous playback on a straight strip.
+It still does not validate the perceived geometry on a physically assembled
+2D matrix.
+
 ## Deferred scope
 
 Do not add Fire2012 or any effect requiring `FxRuntime::work`; Composer working
