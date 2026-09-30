@@ -73,7 +73,7 @@ here does not establish an agreed exclusion from the MVP.
 | 11 - local checkpoint | Publish EasyLED device telemetry | Delivered in `3b4955c`: retained state and boot/hourly capability reports with durable sequence/boot counters. |
 | 12 - local checkpoint | Prepare authenticated HTTPS payload source | Delivered in `d111055`: injected TLS client, bounds/timeout/checksum policy and fake-client validation; final wiring awaits backend artifacts. |
 | 13 - local checkpoint | Expand 1D effects: Meteor, Twinkle, RunningLights | Delivered with stable IDs 9..11: 8136 scene/Composer/codec checks pass in ESP32 QEMU and WROOM; 308 network-contract checks pass in QEMU. Rodrigo confirmed all three effects and their distinct color pairs on GPIO16/50. Fire2012 remains separate because it requires Composer working-buffer support. |
-| 14 - following task | Expand genuine 2D effects | Plasma, MatrixRain and Ripple after the 1D batch is checkpointed; use the existing ledmap/virtual-canvas path. |
+| 14 - approved task | Expand genuine 2D effects | Plasma, MatrixRain and Ripple with stable IDs 12..14, using the existing ledmap/virtual-canvas path and focused tests. Brief: `docs/pixels-effects-2d-batch1-task.md`. |
 
 The Composer engine already supports 2D/ledmaps/multiple outputs in C++.
 The reviewed `adapter_esp_pixels` supports two physical RGB outputs. The
@@ -152,5 +152,6 @@ canonical payload and delivery contracts. Completed briefs:
 While the backend finishes its canonical HTTPS fixture/header/error package,
 the approved independent firmware task is
 [Meteor, Twinkle and RunningLights](pixels-effects-1d-batch2-task.md). It appends
-IDs 9..11 without changing transport or persistence contracts. The next effects
-task will be a separate genuine-2D batch.
+IDs 9..11 without changing transport or persistence contracts. The approved
+next effects task is [Plasma, MatrixRain and Ripple](pixels-effects-2d-batch1-task.md),
+the first genuine-2D batch on the existing virtual canvas.

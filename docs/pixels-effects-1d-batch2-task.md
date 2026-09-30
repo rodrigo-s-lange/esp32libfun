@@ -118,8 +118,11 @@ coordinates, blended between the two configured colors.
   `step = 5 + (intensity * 59 / 255)`. This ranges from a broad wave to tightly
   spaced waves without depending on segment width.
 - For source coordinate `x`, sample the existing 8-bit sine at
-  `time_phase + x * step`, normalize its existing asymmetric endpoint range in
+  `x * step - time_phase`, normalize its existing asymmetric endpoint range in
   the same disciplined way as Breathe, and blend background to foreground.
+  The subtraction is required for a fixed feature to move toward increasing
+  source coordinates; Codex caught and corrected the original plus-sign
+  implementation during review.
 
 Use wide intermediates before reducing phase modulo 256. The effect is 1D-only;
 genuine 2D waves belong to the next task.
