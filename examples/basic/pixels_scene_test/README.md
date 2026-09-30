@@ -391,7 +391,7 @@ on GPIO16/50.
 Binary size: 610832 bytes. Any future addition to this specific
 binary should re-measure this margin before assuming it still fits.
 
-### Meteor, Twinkle and RunningLights — reviewed in QEMU (29/09/26)
+### Meteor, Twinkle and RunningLights — reviewed in QEMU and WROOM (29/09/26)
 
 The runner now links the permanent unit tests for effect ids 9, 10 and 11,
 extends the maximum-size scene/preset fixtures through all eleven 1D-capable
@@ -402,7 +402,11 @@ wave toward decreasing source coordinates despite the documented increasing
 direction. The effect now subtracts temporal phase, and a dedicated shift
 test proves that the pattern at `x-1` reaches `x` after one spatial step.
 
-The complete image executed in ESP32 QEMU with **8136 checks, zero failures**.
+The complete image executed in ESP32 QEMU and on WROOM/COM6 with **8136
+checks, zero failures** in both environments.
 Static DRAM is **178476/180736 bytes used (2260 free, 98.75%)**; IRAM is
 47587/131072 bytes used and the image is 630121 bytes before binary padding.
-The GPIO16/50 visual bench and WROOM execution remain pending.
+Rodrigo then confirmed the GPIO16/50 visual sequence: Meteor red over blue,
+Twinkle white/cyan over dark purple, and RunningLights green over magenta,
+each held for approximately ten seconds. The pre-bench empty scene was saved
+to and restored from `Pos100`; the final `PRESETLOAD` persisted zero segments.
