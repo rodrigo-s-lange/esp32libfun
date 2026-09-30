@@ -168,6 +168,33 @@ void presetCodecTests()
     decoded.count = 7;
     CHECK(bench::decodePreset(reencoded, topology1, bench::MapConfig{}, decoded_name, decoded_name_len, decoded, found) == ESP_OK &&
           decoded.count == 0);
+
+    // 2D pixel effects batch 1: one compact preset (opaque-blob) round trip
+    // with real h>1 geometry (the same 5x14 serpentine matrix over
+    // topology2's own 70-pixel two-output topology test_scene.cpp's own
+    // codecTests() already establishes for the scene codec), cycling
+    // effect_id through the new genuinely-2D ids 12..14 -- never the 1D-only
+    // effects1D[] fixture above.
+    const bench::MapConfig matrix2d{5, 14, 0, bench::MapWiring::Serpentine};
+    comp::AtScene scene2d{};
+    scene2d.count = 1;
+    scene2d.segments[0].is2D = true;
+    scene2d.segments[0].id = 1;
+    scene2d.segments[0].w = 5;
+    scene2d.segments[0].h = 14;
+    bench::PresetRecord record2d{};
+    for (uint8_t id2d : {uint8_t{12}, uint8_t{13}, uint8_t{14}}) {
+        scene2d.segments[0].effect_id = id2d;
+        CHECK(bench::encodePreset("2D", 2, scene2d, topology2, matrix2d, 1, record2d) == ESP_OK);
+        comp::AtScene decoded2d{};
+        char decoded2d_name[bench::kPresetNameMaxLen + 1];
+        size_t decoded2d_name_len = 0;
+        uint64_t found2d = 0;
+        CHECK(bench::decodePreset(record2d, topology2, matrix2d, decoded2d_name, decoded2d_name_len,
+                                  decoded2d, found2d) == ESP_OK);
+        CHECK(decoded2d.count == 1 && decoded2d.segments[0].is2D && decoded2d.segments[0].effect_id == id2d &&
+              decoded2d.segments[0].w == 5 && decoded2d.segments[0].h == 14);
+    }
 }
 
 // --- PresetStore gates (through the linker-wrapped mock) -------------------
