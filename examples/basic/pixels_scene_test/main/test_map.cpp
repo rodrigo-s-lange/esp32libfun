@@ -28,21 +28,43 @@ int checks = 0, failures = 0;
 #define CHECK(condition) do { ++checks; if (!(condition)) { ++failures; \
     std::printf("MAP FAIL line %d: %s\n", __LINE__, #condition); } } while (0)
 
+void renewMapCrc(mock::MapMockSlot &slot)
+{
+    uint32_t crc = UINT32_MAX;
+    for (size_t i = 0; i < slot.size - 4; ++i) {
+        crc ^= slot.bytes[i];
+        for (unsigned bit = 0; bit < 8; ++bit) {
+            crc = (crc >> 1) ^ ((0U - (crc & 1U)) & 0xedb88320U);
+        }
+    }
+    crc = ~crc;
+    for (unsigned i = 0; i < 4; ++i) { slot.bytes[slot.size - 4 + i] = crc >> (8 * i); }
+}
+
 void mapValidationTests()
 {
     const MapConfig progressive{3,4,45,MapWiring::Progressive};
     const MapConfig serpentine{3,4,45,MapWiring::Serpentine};
+    const MapConfig column_serpentine{3,4,45,MapWiring::ColumnSerpentine};
     int32_t entries[12];
-    CHECK(progressive.valid(62) && serpentine.valid(62));
+    CHECK(progressive.valid(62) && serpentine.valid(62) && column_serpentine.valid(62));
     CHECK(bench::generateLedmap(progressive, entries, 12));
     for (int i = 0; i < 12; ++i) { CHECK(entries[i] == 45 + i); }
     CHECK(bench::generateLedmap(serpentine, entries, 12));
     const int32_t expected[] = {45,46,47,50,49,48,51,52,53,56,55,54};
     for (int i = 0; i < 12; ++i) { CHECK(entries[i] == expected[i]); }
+    CHECK(bench::generateLedmap(column_serpentine, entries, 12));
+    const int32_t expected_columns[] = {48,49,56,47,50,55,46,51,54,45,52,53};
+    for (int i = 0; i < 12; ++i) { CHECK(entries[i] == expected_columns[i]); }
+    int32_t bench_entries[31 * 12];
+    const MapConfig bench_matrix{31,12,0,MapWiring::ColumnSerpentine};
+    CHECK(bench_matrix.valid(372) && bench::generateLedmap(bench_matrix, bench_entries, 31 * 12));
+    CHECK(bench_entries[0] == 11 && bench_entries[30] == 371);
+    CHECK(bench_entries[11 * 31] == 0 && bench_entries[11 * 31 + 30] == 360);
     CHECK(!bench::generateLedmap(serpentine, entries, 11));
     CHECK(!(MapConfig{65535,65535,65535,MapWiring::Progressive}.valid(62)));
     CHECK(!(MapConfig{3,4,51,MapWiring::Progressive}.valid(62)));
-    CHECK(!(MapConfig{3,4,0,static_cast<MapWiring>(2)}.valid(62)));
+    CHECK(!(MapConfig{3,4,0,static_cast<MapWiring>(3)}.valid(62)));
     CHECK(!(MapConfig{0,0,0,MapWiring::Progressive}.valid(62)));
 }
 
@@ -65,6 +87,21 @@ void mapStoreJournalTests()
     matrix.width = 5; matrix.height = 10; matrix.first = 0; matrix.wiring = MapWiring::Serpentine;
     CHECK(matrix.valid(total_pixels));
     CHECK(store.save(matrix) == ESP_OK && mock::g_map_writes == 2 && mock::g_map_slots[1].size != 0);
+
+    // Schema 1 used the same bytes but accepted only row wiring codes 0/1.
+    const mock::MapMockSlot schema2 = mock::g_map_slots[1];
+    mock::g_map_slots[1].bytes[4] = 1;
+    mock::g_map_slots[1].bytes[5] = 0;
+    renewMapCrc(mock::g_map_slots[1]);
+    static MapStore legacy_reboot;
+    MapConfig legacy;
+    CHECK(legacy_reboot.load(legacy) == ESP_OK && legacy == matrix);
+    mock::g_map_slots[1].bytes[22] = 2;
+    renewMapCrc(mock::g_map_slots[1]);
+    static MapStore strict_legacy_reboot;
+    MapConfig strict_legacy;
+    CHECK(strict_legacy_reboot.load(strict_legacy) == ESP_OK && strict_legacy.isIdentity());
+    mock::g_map_slots[1] = schema2;
 
     mock::g_map_slots[1].bytes[10] ^= 1; // latest slot damaged: previous complete (identity) slot survives
     MapConfig fallback;
@@ -89,7 +126,7 @@ void mapStoreJournalTests()
     const unsigned writes_before = mock::g_map_writes;
     CHECK(torn_reboot.save(invalid) == ESP_ERR_INVALID_ARG);
     CHECK(mock::g_map_writes == writes_before);
-    invalid = MapConfig{3,4,0,static_cast<MapWiring>(2)};
+    invalid = MapConfig{3,4,0,static_cast<MapWiring>(3)};
     CHECK(torn_reboot.save(invalid) == ESP_ERR_INVALID_ARG);
     CHECK(mock::g_map_writes == writes_before);
 
@@ -149,11 +186,25 @@ void mapAtIntegrationTests()
               persisted.first == 0 && persisted.wiring == MapWiring::Serpentine);
     }
 
+    // Column-major serpentine is a distinct persisted wiring mode, not an
+    // alias for row-serpentine. It uses the same bounds rules.
+    CHECK(bench::mapAt(MapConfig{}, device, scene_store, output_store, true) == ESP_OK);
+    CHECK(esp32libfun::at.feedLine("AT+MAPSET=10,5,0,COLUMN_SERPENTINE") == ESP_OK);
+    CHECK(esp32libfun::at.feedLine("AT+MAPSAVE") == ESP_OK);
+    CHECK(bench::mapAt(MapConfig{}, device, scene_store, output_store, false) == ESP_OK);
+    {
+        static MapStore reboot_column;
+        MapConfig persisted;
+        CHECK(reboot_column.load(persisted) == ESP_OK);
+        CHECK(persisted.width == 10 && persisted.height == 5 &&
+              persisted.wiring == MapWiring::ColumnSerpentine);
+    }
+
     // --- Phase B: AT+MAPCLR stages the identity map (no storage/scene
     // touch of its own), then AT+MAPSAVE persists that.
     MapConfig after_phase_a;
-    after_phase_a.width = 5; after_phase_a.height = 10; after_phase_a.first = 0;
-    after_phase_a.wiring = MapWiring::Serpentine;
+    after_phase_a.width = 10; after_phase_a.height = 5; after_phase_a.first = 0;
+    after_phase_a.wiring = MapWiring::ColumnSerpentine;
     CHECK(bench::mapAt(after_phase_a, device, scene_store, output_store, true) == ESP_OK);
 
     CHECK(esp32libfun::at.feedLine("AT+MAPCLR") == ESP_OK);

@@ -73,16 +73,18 @@ here does not establish an agreed exclusion from the MVP.
 | 11 - local checkpoint | Publish EasyLED device telemetry | Delivered in `3b4955c`: retained state and boot/hourly capability reports with durable sequence/boot counters. |
 | 12 - local checkpoint | Prepare authenticated HTTPS payload source | Delivered in `d111055`: injected TLS client, bounds/timeout/checksum policy and fake-client validation; final wiring awaits backend artifacts. |
 | 13 - local checkpoint | Expand 1D effects: Meteor, Twinkle, RunningLights | Delivered with stable IDs 9..11: 8136 scene/Composer/codec checks pass in ESP32 QEMU and WROOM; 308 network-contract checks pass in QEMU. Rodrigo confirmed all three effects and their distinct color pairs on GPIO16/50. Fire2012 remains separate because it requires Composer working-buffer support. |
-| 14 - approved task | Expand genuine 2D effects | Plasma, MatrixRain and Ripple with stable IDs 12..14, using the existing ledmap/virtual-canvas path and focused tests. Brief: `docs/pixels-effects-2d-batch1-task.md`. |
+| 14 - local checkpoint | Expand genuine 2D effects | Delivered: Plasma, MatrixRain and Ripple with stable IDs 12..14, using the existing ledmap/virtual-canvas path and focused tests. Brief: `docs/pixels-effects-2d-batch1-task.md`. |
+| 15 - local checkpoint | Physical 31x12 column-serpentine matrix | Delivered: stable `COLUMN_SERPENTINE` AT/persistence mode, scene schema 5 compatibility, 8701 WROOM checks, exact corner mapping and all 31 columns visually confirmed after repairing a physical break after pixel 361. |
 
 The Composer engine already supports 2D/ledmaps/multiple outputs in C++.
 The reviewed `adapter_esp_pixels` supports two physical RGB outputs. The
-application's schema 4 retains mirror, topology, the map descriptor and 1D/2D
-shape while reading schema-1/2/3 records. Record sizes remain 1295/1348 bytes
+application's schema 5 retains mirror, topology, the map descriptor and 1D/2D
+shape while reading schema-1/2/3/4 records. Record sizes remain 1295/1348 bytes
 for scenes/presets. Hardware suites and storage
 capacity passed; Rodrigo confirmed the 2D increment visually and it is
-checkpointed locally. The bench used a virtual canvas on a straight strip;
-an assembled matrix panel has not been tested.
+checkpointed locally. The original bench used a virtual canvas on a straight
+strip; a later assembled 31x12 column-serpentine matrix passed its corner,
+column-sweep and reboot-persistence smoke test.
 
 ## Delivery alignment: 2026-10-15
 

@@ -23,7 +23,7 @@ setters take effect only after `AT+SEGPUB`. `PIXELS_PRESETS` (unreleased)
 is a second, application-owned AT library for named
 presets -- see its own section below.
 
-## Automatic configuration retention (schemas 1/2/3 read, schema 4 written)
+## Automatic configuration retention (schemas 1/2/3/4 read, schema 5 written)
 
 - A confirmed `AT+SEGPUB` saves the entire ordered scene. `AT+COMPAUSE=0|1`
   saves global pause with the last confirmed segments, never intervening staged
@@ -44,10 +44,11 @@ presets -- see its own section below.
 - Records use explicit little-endian fields, schema/catalog versions, a 64-bit
   generation and CRC32, not raw C++ struct bytes. Schema 1 (single output
   only, fixed 32-byte header) is still read on boot/recall, never written
-  again. Schemas 2 and 3 remain readable too. Every new save writes schema 4
+  again. Schemas 2, 3 and 4 remain readable too. Every new save writes schema 5
   (variable-size header, 38 bytes at one output, up to 43 at two outputs).
-  Schema 4 adds mirror in the existing flags byte, keeping record sizes
-  unchanged. See the mirror section for its compatibility rules.
+  Schema 4 added mirror in the existing flags byte; schema 5 adds the stable
+  column-serpentine map code. Both keep record sizes unchanged. See the mirror
+  and 2D sections for compatibility rules.
 - Namespace `pixels_scene`, keys `scene_a`/`scene_b` in the existing NVS
   partition. Save targets the inactive key, commits and reads back; it does not
   overwrite the last valid key. Boot selects the newest valid COMPATIBLE
@@ -630,15 +631,17 @@ A new, application-owned AT library (`main/map_config.hpp`, `main/
 map_store.*`, `main/map_at.*`), entirely separate from `PIXELS_COMPOSER`/
 `PIXELS_PRESETS`/`PIXELS_OUTPUTS`: discover it the same way, `AT+HELP?` then
 `AT+PIXELS_MAP?`. Generates a real ledmap table from a compact descriptor
-(width/height/first logical pixel/row wiring) at boot and installs it via
+(width/height/first logical pixel/wiring) at boot and installs it via
 `Composer::setLedmap()`, once, right after `build()` -- never a per-preset
 table.
 
 - `AT+MAP?` -- lists the ACTIVE canvas (what `Composer::setLedmap()`
   actually installed), the durably SAVED-for-next-boot one, and the STAGED
   candidate, each as `identity` or `width=<w> height=<h> first=<f>
-  wiring=<PROGRESSIVE|SERPENTINE> range=[<f>,<f+w*h>)`. Query only.
-- `AT+MAPSET=<width>,<height>,<first>,<PROGRESSIVE|SERPENTINE>` -- stages
+  wiring=<PROGRESSIVE|SERPENTINE|COLUMN_SERPENTINE>
+  range=[<f>,<f+w*h>)`. Query only.
+- `AT+MAPSET=<width>,<height>,<first>,<PROGRESSIVE|SERPENTINE|COLUMN_SERPENTINE>`
+  -- stages
   one whole candidate matrix, validated (`width`/`height` > 0, `first +
   width*height <= totalPixels()`) against whatever output topology is
   CURRENTLY durably saved for the next boot (never an unsaved staged
@@ -654,14 +657,18 @@ table.
   `Composer::setLedmap()` canvas (which cannot change after `build()`
   established it anyway).
 
-Origin is top-left, X right, Y down, row-major. PROGRESSIVE runs every row
-the same direction; SERPENTINE alternates per row (row 0 forward, row 1
-backward, ...). `first` is the GLOBAL logical index of canvas cell `(0,0)`
--- not a per-output index, and a matrix may cross an output boundary the
-same way a 1D segment already can. This increment is deliberately a single,
-uniform rectangle for the whole canvas: no arbitrary map-entry editor, no
-holes, no panel tiling/rotation, no separate canvas per output -- limits of
-this first AT increment, not of `Composer::setLedmap()` itself.
+Origin is top-left, X right, Y down, and the canvas is row-major. PROGRESSIVE
+runs every row in the same direction; SERPENTINE alternates per row (row 0
+forward, row 1 backward, ...). COLUMN_SERPENTINE stores each physical column
+contiguously, with column 0 running bottom-to-top, column 1 top-to-bottom, and
+so on. For the 31x12 bench matrix this maps the four canvas corners to logical
+pixels 11 (top-left), 371 (top-right), 0 (bottom-left), and 360
+(bottom-right). `first` is the GLOBAL logical base of the matrix range, not a
+per-output index, and a matrix may cross an output boundary the same way a 1D
+segment already can. This increment is deliberately a single, uniform
+rectangle for the whole canvas: no arbitrary map-entry editor, holes, panel
+tiling/rotation, or separate canvas per output. Those are limits of this AT
+increment, not of `Composer::setLedmap()` itself.
 
 ### `AT+SEGSET2D` and the new `XYGradient` effect
 
@@ -690,7 +697,9 @@ per-segment fields -- never a redundant second geometry pair), and one
 compact map descriptor per record (7 bytes: width/height/first/wiring) --
 never a full generated ledmap table. Schema 1 and 2 (this application's own
 earlier, map-less formats) are still read unchanged, always implying the
-identity canvas.
+identity canvas. The later schema 5 preserves this exact layout and record
+size while adding COLUMN_SERPENTINE as wiring code 2; schema 3/4 records remain
+readable and keep their original wiring-code range.
 
 Compatibility checks output topology and map together. Identity records with
 only 1D segments may use IDENTITY or a zero-offset PROGRESSIVE matrix covering
@@ -826,6 +835,33 @@ gradients, blackout/preset/reboot recovery and serpentine blue column with
 GPIO17 black. The 2D delivery is checkpointed locally after that confirmation;
 no push or tag was performed. This validates a virtual canvas on a straight
 strip, not an assembled matrix panel.
+
+### Column-serpentine 31x12 matrix — hardware validated 05/10/26
+
+The application now accepts `COLUMN_SERPENTINE` as a third stable wiring
+mode. It preserves the top-left canvas origin while mapping each physical
+column contiguously: even columns run bottom-to-top and odd columns run
+top-to-bottom. New map saves use map-store schema 2 and new scene/preset saves
+use scene schema 5; both layouts keep their previous byte counts, and every
+older schema remains readable with its original enum/flags validation.
+
+The complete scene runner executed on the WROOM with **8701 checks and zero
+failures**. The root application then booted GPIO16/372 with a 31x12 map and
+reported `persistence=scene-v5`. On Rodrigo's assembled matrix, the four
+canvas corners resolved to physical pixels 0, 11, 360 and 371 with the
+expected colors. Horizontal and vertical Solid rectangles and a white
+vertical bar over a red background then exercised every column in order.
+
+The first full-width attempt exposed a physical data interruption after pixel
+361: pixels 362..370 stayed black and 371 retained blue even when the output
+temporarily transmitted 373 positions. After the matrix hardware was repaired,
+the 31-column sweep completed correctly. This distinguished the wiring fault
+from the ledmap, compositor and RMT frame length. The official configuration
+was restored to GPIO16/372, `31x12`, `first=0`, `COLUMN_SERPENTINE`, with
+global brightness 96/255. The AT-driven sweep deliberately republished and
+persisted each position, so its visible step flicker is not an effect-render
+benchmark; production animation advances inside the render loop without NVS
+writes per frame.
 ## Symmetric 1D mirror (PIXELS_COMPOSER `AT+SEGMIRROR`) — validated locally, unreleased
 
 Claude implemented this brief (`docs/pixels-mirror-task.md`) against app

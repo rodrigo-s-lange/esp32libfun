@@ -175,7 +175,7 @@ void presetCodecTests()
     // codecTests() already establishes for the scene codec), cycling
     // effect_id through the new genuinely-2D ids 12..14 -- never the 1D-only
     // effects1D[] fixture above.
-    const bench::MapConfig matrix2d{5, 14, 0, bench::MapWiring::Serpentine};
+    const bench::MapConfig matrix2d{5, 14, 0, bench::MapWiring::ColumnSerpentine};
     comp::AtScene scene2d{};
     scene2d.count = 1;
     scene2d.segments[0].is2D = true;

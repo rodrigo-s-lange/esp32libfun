@@ -10,7 +10,7 @@
 //                        durably SAVED-for-next-boot one, then the STAGED
 //                        candidate (what AT+MAPSAVE would persist). Query
 //                        only, never changes anything.
-// - AT+MAPSET=<width>,<height>,<first>,<PROGRESSIVE|SERPENTINE> -- stages
+// - AT+MAPSET=<width>,<height>,<first>,<PROGRESSIVE|SERPENTINE|COLUMN_SERPENTINE> -- stages
 //                        one whole candidate matrix descriptor, validated
 //                        (positive dimensions, first+width*height in range)
 //                        against whatever output topology is CURRENTLY
@@ -99,7 +99,7 @@ bool consumeComma(const char **cursor)
     return true;
 }
 
-static constexpr const char *kWiringNames[] = {"PROGRESSIVE", "SERPENTINE"};
+static constexpr const char *kWiringNames[] = {"PROGRESSIVE", "SERPENTINE", "COLUMN_SERPENTINE"};
 
 bool parseWiring(const char *text, MapWiring *wiring_out, const char **next_out)
 {
@@ -107,7 +107,7 @@ bool parseWiring(const char *text, MapWiring *wiring_out, const char **next_out)
     if (text == nullptr) {
         return false;
     }
-    for (uint8_t w = 0; w < 2; ++w) {
+    for (uint8_t w = 0; w < 3; ++w) {
         const char *name = kWiringNames[w];
         size_t i = 0;
         while (name[i] != '\0' && text[i] != '\0' &&
@@ -156,7 +156,7 @@ void atMapQuery(const char *args)
                             s_staged.isIdentity() ? "identity" : "matrix");
 }
 
-// --- AT+MAPSET=<width>,<height>,<first>,<PROGRESSIVE|SERPENTINE> ---------
+// --- AT+MAPSET=<width>,<height>,<first>,<wiring> -------------------------
 
 void atMapSet(const char *args)
 {
@@ -167,7 +167,8 @@ void atMapSet(const char *args)
         !consumeComma(&cursor) || !parseU32(cursor, &height_u, &cursor) || height_u == 0 || height_u > UINT16_MAX ||
         !consumeComma(&cursor) || !parseU32(cursor, &first_u, &cursor) || first_u > UINT16_MAX ||
         !consumeComma(&cursor) || !parseWiring(cursor, &wiring, &cursor) || !atEndOfArgs(cursor)) {
-        esp32libfun::at.writeError("use AT+MAPSET=<width>,<height>,<first>,<PROGRESSIVE|SERPENTINE> "
+        esp32libfun::at.writeError("use AT+MAPSET=<width>,<height>,<first>,"
+                                   "<PROGRESSIVE|SERPENTINE|COLUMN_SERPENTINE> "
                                    "(width/height must be > 0)");
         return;
     }
@@ -240,7 +241,8 @@ struct AtCommand {
 
 const AtCommand kCommands[] = {
     {"AT+MAP?", atMapQuery, "List active, saved and staged canvas/ledmap"},
-    {"AT+MAPSET", atMapSet, "Stage a matrix: <width>,<height>,<first>,<PROGRESSIVE|SERPENTINE>"},
+    {"AT+MAPSET", atMapSet,
+     "Stage a matrix: <width>,<height>,<first>,<PROGRESSIVE|SERPENTINE|COLUMN_SERPENTINE>"},
     {"AT+MAPCLR", atMapClr, "Stage the identity map (no real matrix)"},
     {"AT+MAPSAVE", atMapSave, "Persist the staged map for the next reboot"},
 };

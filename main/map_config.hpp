@@ -4,7 +4,7 @@
 #include <cstdint>
 
 // The device's own 2D canvas/ledmap configuration -- a rectangular matrix
-// descriptor (width/height/first logical pixel/row wiring), generated into
+// descriptor (width/height/first logical pixel/wiring), generated into
 // a real `Composer::setLedmap()` table at boot. Entirely application/device
 // configuration, deliberately separate from effect segments (which only
 // ever address the resulting canvas/logical index space) and from the
@@ -22,11 +22,12 @@
 
 namespace bench {
 
-/// Row wiring for a generated matrix -- stable stored codes, independent of
-/// any transport enum.
+/// Wiring for a generated matrix -- stable stored codes, independent of any
+/// transport enum. Origin remains top-left for every mode.
 enum class MapWiring : uint8_t {
     Progressive = 0, ///< every row runs the same direction (left -> right)
     Serpentine = 1,  ///< row 0 forward, row 1 backward, alternating
+    ColumnSerpentine = 2, ///< column 0 bottom -> top, column 1 top -> bottom, alternating
 };
 
 /// The device's active, staged, or saved 2D canvas configuration. `width ==
@@ -58,7 +59,7 @@ struct MapConfig {
         if (isIdentity()) {
             return height == 1 && first == 0 && wiring == MapWiring::Progressive;
         }
-        if (height == 0 || static_cast<uint8_t>(wiring) > 1) {
+        if (height == 0 || static_cast<uint8_t>(wiring) > 2) {
             return false;
         }
         const uint32_t cells = static_cast<uint32_t>(width) * height;
@@ -106,10 +107,12 @@ inline bool isCompatibleMap(const MapConfig &record_map, const MapConfig &curren
 
 /// Generates a real `width*height` row-major ledmap table (flat canvas
 /// index -> logical index, `Composer::setLedmap()`'s own format) for a
-/// rectangular matrix: canvas cell `(0,0)` (top-left) is logical index
-/// `map.first`; PROGRESSIVE assigns every row left-to-right in increasing
-/// logical order; SERPENTINE alternates direction per row (row 0 forward,
-/// row 1 backward, ...). Never produces a hole (`-1`) itself -- every cell
+/// rectangular matrix. PROGRESSIVE assigns every row left-to-right in
+/// increasing logical order. SERPENTINE alternates direction per row (row 0
+/// forward, row 1 backward, ...). COLUMN_SERPENTINE stores each physical
+/// column contiguously: column 0 runs bottom-to-top, column 1 top-to-bottom,
+/// alternating thereafter, while canvas coordinate `(0,0)` remains the
+/// top-left cell. Never produces a hole (`-1`) itself -- every cell
 /// of the full `width*height` rectangle maps to exactly one logical index
 /// in `[first, first+width*height)`, each used exactly once.
 /// @param map A non-identity, `valid()` map (caller's own responsibility;
@@ -128,11 +131,17 @@ inline bool generateLedmap(const MapConfig &map, int32_t *entries, size_t entry_
         return false;
     }
     for (uint16_t y = 0; y < map.height; ++y) {
-        const bool reverse_row = (map.wiring == MapWiring::Serpentine) && ((y % 2) != 0);
         for (uint16_t x = 0; x < map.width; ++x) {
-            const uint16_t col = reverse_row ? static_cast<uint16_t>(map.width - 1 - x) : x;
-            entries[static_cast<size_t>(y) * map.width + x] =
-                static_cast<int32_t>(map.first) + static_cast<int32_t>(y) * map.width + static_cast<int32_t>(col);
+            int32_t logical = 0;
+            if (map.wiring == MapWiring::ColumnSerpentine) {
+                const uint16_t row = (x % 2) == 0 ? static_cast<uint16_t>(map.height - 1 - y) : y;
+                logical = static_cast<int32_t>(x) * map.height + row;
+            } else {
+                const bool reverse_row = (map.wiring == MapWiring::Serpentine) && ((y % 2) != 0);
+                const uint16_t col = reverse_row ? static_cast<uint16_t>(map.width - 1 - x) : x;
+                logical = static_cast<int32_t>(y) * map.width + col;
+            }
+            entries[static_cast<size_t>(y) * map.width + x] = static_cast<int32_t>(map.first) + logical;
         }
     }
     return true;

@@ -52,7 +52,7 @@ void codecTests()
         s.params.custom[0] = i; s.params.custom[1] = 65 + i; s.params.custom[2] = 250 - i;
     }
     constexpr uint64_t generation = 0x123456789abcdef0ULL;
-    // Schema 4 (Task 7G), one output, identity map: magic(4)+schema(2)+
+    // Schema 5, one output, identity map: magic(4)+schema(2)+
     // size(2)+generation(8)+output_count(1)+1*(pin2+count2+order1=5)+
     // map(width2+height2+first2+wiring1=7)+scene.count(1)+brightness(1)+
     // paused(1)+reserved(2)+fx_catalog(4) = 38 -- byte-identical to schema
@@ -65,7 +65,7 @@ void codecTests()
     if (encoded != ESP_OK) { return; } // Do not corrupt/CRC an uninitialized record after a failed fixture.
     CHECK(record.size == kHeaderBytes + comp::MAX_SEGMENTS * bench::kSceneSegmentBytesV3 + 4);
     CHECK(record.bytes[0] == 'S' && record.bytes[1] == 'C' && record.bytes[2] == 'N' && record.bytes[3] == '1');
-    CHECK(record.bytes[4] == 4 && record.bytes[5] == 0); // schema field: encodeScene() now writes schema 4
+    CHECK(record.bytes[4] == 5 && record.bytes[5] == 0); // schema field: encodeScene() now writes schema 5
     CHECK(record.bytes[8] == 0xf0 && record.bytes[15] == 0x12);
     // Segment 0's own id(4)/start(2)/stop(2) LSBs, right after the header.
     CHECK(record.bytes[kHeaderBytes] == 100 && record.bytes[kHeaderBytes + 4] == 0 &&
@@ -80,6 +80,14 @@ void codecTests()
     }
     CHECK(bench::encodeScene(decoded, topology, identity, found, reencoded) == ESP_OK);
     CHECK(record.size == reencoded.size && std::memcmp(record.bytes, reencoded.bytes, record.size) == 0);
+
+    // Schema 4 remains readable with the same layout and flags semantics.
+    reencoded = record;
+    reencoded.bytes[4] = 4;
+    renewCrc(reencoded);
+    decoded = comp::AtScene{}; found = 0;
+    CHECK(bench::decodeScene(reencoded, topology, identity, decoded, found) == ESP_OK &&
+          found == generation && decoded.segments[0].mirror);
 
     // Task 7G: the SAME bytes, with ONLY the schema field changed to 3,
     // prove schema 3 keeps its own strict 0/1 reversed-byte validation --
@@ -245,6 +253,20 @@ void codecTests()
     // The SAME bytes rejected under the identity canvas (record embeds its
     // own real map, isCompatibleMap() requires an EXACT match).
     CHECK(bench::decodeScene(reencoded, two, identity, decoded, found) == ESP_ERR_NOT_SUPPORTED);
+
+    // Schema 5 persists column-serpentine as stable wiring code 2 without
+    // changing record size. Schema 4 keeps its historical 0..1 validation.
+    const MapConfig column_matrix{5, 14, 0, MapWiring::ColumnSerpentine};
+    CHECK(bench::encodeScene(scene, two, column_matrix, 1, reencoded) == ESP_OK);
+    const size_t map_wiring_offset = 23 + static_cast<size_t>(two.count) * 5;
+    CHECK(reencoded.bytes[4] == 5 && reencoded.bytes[5] == 0 &&
+          reencoded.bytes[map_wiring_offset] == 2);
+    decoded = comp::AtScene{};
+    CHECK(bench::decodeScene(reencoded, two, column_matrix, decoded, found) == ESP_OK && decoded.count == 2);
+    reencoded.bytes[4] = 4;
+    renewCrc(reencoded);
+    CHECK(bench::decodeStoredScene(reencoded, decoded, found) == ESP_ERR_INVALID_ARG);
+
     // A 2D segment one column past the matrix width is rejected.
     scene.segments[0].w = 6;
     CHECK(bench::encodeScene(scene, two, matrix, 1, reencoded) != ESP_OK);

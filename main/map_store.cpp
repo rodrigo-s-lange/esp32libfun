@@ -8,7 +8,8 @@ namespace {
 constexpr const char *kKeys[] = {"map_a", "map_b"};
 constexpr const char *kTag = "MAP_NVS";
 constexpr uint32_t kMagic = 0x33504d43; // "CMP3" (reads distinctly from scene's "SCN1"/preset's "PST1"/output's "CON2")
-constexpr uint16_t kSchema = 1;
+constexpr uint16_t kSchemaV1 = 1; // row wiring only; read-only
+constexpr uint16_t kSchemaV2 = 2; // adds stable wiring code 2 (COLUMN_SERPENTINE)
 
 void put(uint8_t *&p, uint64_t value, unsigned bytes)
 {
@@ -39,7 +40,7 @@ esp_err_t encodeMap(const MapConfig &map, uint64_t sequence, MapStore::Record &r
     if (sequence == 0 || !map.valid(UINT16_MAX)) { return ESP_ERR_INVALID_ARG; }
     record.size = MapStore::kRecordBytes; // fixed size -- no variable-length part, unlike OutputStore's topology
     uint8_t *p = record.bytes;
-    put(p, kMagic, 4); put(p, kSchema, 2); put(p, record.size, 2); put(p, sequence, 8);
+    put(p, kMagic, 4); put(p, kSchemaV2, 2); put(p, record.size, 2); put(p, sequence, 8);
     put(p, map.width, 2); put(p, map.height, 2); put(p, map.first, 2);
     put(p, static_cast<uint8_t>(map.wiring), 1);
     put(p, crc32(record.bytes, record.size - 4), 4);
@@ -52,7 +53,11 @@ esp_err_t decodeMap(const MapStore::Record &record, MapConfig &map, uint64_t &se
     const uint8_t *crc = record.bytes + record.size - 4;
     if (get(crc, 4) != crc32(record.bytes, record.size - 4)) { return ESP_ERR_INVALID_CRC; }
     const uint8_t *p = record.bytes;
-    if (get(p, 4) != kMagic || get(p, 2) != kSchema || get(p, 2) != record.size) {
+    if (get(p, 4) != kMagic) {
+        return ESP_ERR_INVALID_VERSION;
+    }
+    const uint16_t schema = static_cast<uint16_t>(get(p, 2));
+    if ((schema != kSchemaV1 && schema != kSchemaV2) || get(p, 2) != record.size) {
         return ESP_ERR_INVALID_VERSION;
     }
     const uint64_t generation = get(p, 8);
@@ -62,7 +67,7 @@ esp_err_t decodeMap(const MapStore::Record &record, MapConfig &map, uint64_t &se
     candidate.height = static_cast<uint16_t>(get(p, 2));
     candidate.first = static_cast<uint16_t>(get(p, 2));
     const uint8_t wiring = static_cast<uint8_t>(get(p, 1));
-    if (wiring > 1) { return ESP_ERR_INVALID_ARG; }
+    if (wiring > (schema == kSchemaV1 ? 1 : 2)) { return ESP_ERR_INVALID_ARG; }
     candidate.wiring = static_cast<MapWiring>(wiring);
     if (!candidate.valid(UINT16_MAX)) { return ESP_ERR_INVALID_ARG; }
     map = candidate;

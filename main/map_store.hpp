@@ -14,7 +14,9 @@ namespace bench {
 /// partition `SceneStore`/`OutputStore` already use (its own record is tiny
 /// -- at most ~27 bytes -- so no partition layout change is needed for it
 /// either). Same versioned, CRC-protected, torn-write/newest-valid-survives
-/// A/B discipline every other store here already has.
+/// A/B discipline every other store here already has. Schema 1 row-wiring
+/// records remain readable; new saves use schema 2, which adds the stable
+/// column-serpentine wiring code without changing record size.
 ///
 /// Saving here takes effect on the **next explicit reboot only** -- this
 /// store never live-replaces the currently active `Composer::setLedmap()`

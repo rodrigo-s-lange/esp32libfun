@@ -410,3 +410,27 @@ Rodrigo then confirmed the GPIO16/50 visual sequence: Meteor red over blue,
 Twinkle white/cyan over dark purple, and RunningLights green over magenta,
 each held for approximately ten seconds. The pre-bench empty scene was saved
 to and restored from `Pos100`; the final `PRESETLOAD` persisted zero segments.
+
+### Column-serpentine map — WROOM and assembled matrix (05/10/26)
+
+`test_map.cpp` now covers the third stable wiring code,
+`COLUMN_SERPENTINE`, including the exact 31x12 corner mapping, AT staging and
+save, map-store schema-1 compatibility, and rejection of wiring code 2 when
+the same bytes claim legacy schema 1. `test_scene.cpp` likewise proves scene
+schema 5 round trips code 2 while schema 4 retains its historical 0..1 bound;
+schema 4 mirror records remain readable. Record sizes are unchanged.
+
+The runner executed on WROOM/COM6 with **8701 checks, zero failures**:
+`SCENE=1602`, `PRESET=1844`, `OUTPUTS=69`, `MAP=140`, and all Composer/AT/FX
+suites passing. Image size is 655817 bytes before binary padding; static DRAM
+is **179024/180736 bytes used (1712 free, 99.05%)** and IRAM is
+48503/131072 bytes. This remains above the runner's 1024-byte split threshold,
+but the margin must be remeasured before adding more static fixtures.
+
+The root application then drove a physical 31-column x 12-row matrix on
+GPIO16/372. Corner markers and a column-by-column white-bar sweep over red
+confirmed the column-serpentine mapping. An initial break after physical
+pixel 361 was isolated with a temporary 373-position transmission and repaired
+in the matrix hardware; the complete 31-column sweep then passed. Capture:
+`build/hardware-column-serpentine-tests-pass.log` for the automated runner;
+the visual sweep logs are generated bench artifacts under root `bapp/`.

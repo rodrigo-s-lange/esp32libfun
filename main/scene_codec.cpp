@@ -5,11 +5,12 @@ namespace bench {
 namespace {
 namespace comp = esp_pixels_composer;
 namespace fx = esp_pixels_fx;
-constexpr uint32_t kMagic = 0x314e4353; // SCN1 -- shared by all three schemas
+constexpr uint32_t kMagic = 0x314e4353; // SCN1 -- shared by all five schemas
 constexpr uint16_t kSchemaV1 = 1;       // published bench format: one fixed GPIO16/50/GRB output; read-only from here
 constexpr uint16_t kSchemaV2 = 2;       // prior delivery's format: 1..kMaxOutputs configured outputs, no map/2D; read-only from here
 constexpr uint16_t kSchemaV3 = 3;       // prior delivery's format: adds map/2D segments; read-only from here
-constexpr uint16_t kSchemaV4 = 4;       // this delivery's format: schema 3's own reverse byte becomes a flags byte (bit0 reverse, bit1 mirror)
+constexpr uint16_t kSchemaV4 = 4;       // prior format: schema 3's reverse byte becomes flags (bit0 reverse, bit1 mirror)
+constexpr uint16_t kSchemaV5 = 5;       // adds map wiring code 2 (COLUMN_SERPENTINE); layout unchanged
 // Semantic IDs/parameter meanings, not the C++ ABI. Bump on incompatible FX changes.
 constexpr uint32_t kFxCatalog = 0x00020000;
 
@@ -217,7 +218,7 @@ esp_err_t encodeScene(const comp::AtScene &scene, const Topology &topology, cons
     record.size = header_bytes + scene.count * kSceneSegmentBytesV3 + 4;
     if (record.size > sizeof(record.bytes)) { return ESP_ERR_INVALID_SIZE; } // defensive; cannot happen
     uint8_t *p = record.bytes;
-    put(p, kMagic, 4); put(p, kSchemaV4, 2); put(p, record.size, 2); put(p, sequence, 8);
+    put(p, kMagic, 4); put(p, kSchemaV5, 2); put(p, record.size, 2); put(p, sequence, 8);
     put(p, topology.count, 1);
     for (uint8_t i = 0; i < topology.count; ++i) {
         const OutputSpec &o = topology.outputs[i];
@@ -273,10 +274,10 @@ static esp_err_t decodeSceneChecked(const SceneRecord &record, const Topology *c
             const uint8_t order = static_cast<uint8_t>(get(p, 1));
             record_topology.outputs[i] = OutputSpec{static_cast<int16_t>(pin), count, order};
         }
-    } else if (schema == kSchemaV3 || schema == kSchemaV4) {
-        // Schema 3 and 4 share an IDENTICAL header layout (topology tuples,
-        // then the map descriptor) -- only their own per-segment flags/
-        // reversed byte differs, handled below, never here.
+    } else if (schema == kSchemaV3 || schema == kSchemaV4 || schema == kSchemaV5) {
+        // Schemas 3/4/5 share an IDENTICAL header layout (topology tuples,
+        // then the map descriptor). Schema 5 extends the stable wiring enum;
+        // segment flags retain schema 4's meaning.
         if (record.size < 17 + 4) { return ESP_ERR_INVALID_SIZE; }
         const uint8_t output_count = static_cast<uint8_t>(get(p, 1));
         if (output_count == 0 || output_count > kMaxOutputs) { return ESP_ERR_INVALID_ARG; }
@@ -292,7 +293,7 @@ static esp_err_t decodeSceneChecked(const SceneRecord &record, const Topology *c
         record_map.height = static_cast<uint16_t>(get(p, 2));
         record_map.first = static_cast<uint16_t>(get(p, 2));
         const uint8_t wiring = static_cast<uint8_t>(get(p, 1));
-        if (wiring > 1) { return ESP_ERR_INVALID_ARG; }
+        if (wiring > (schema == kSchemaV5 ? 2 : 1)) { return ESP_ERR_INVALID_ARG; }
         record_map.wiring = static_cast<MapWiring>(wiring);
     } else {
         return ESP_ERR_INVALID_VERSION;
@@ -310,7 +311,8 @@ static esp_err_t decodeSceneChecked(const SceneRecord &record, const Topology *c
     }
     const size_t header_bytes = static_cast<size_t>(p - record.bytes);
     const size_t segment_bytes =
-        (schema == kSchemaV3 || schema == kSchemaV4) ? kSceneSegmentBytesV3 : kSceneSegmentBytes;
+        (schema == kSchemaV3 || schema == kSchemaV4 || schema == kSchemaV5)
+            ? kSceneSegmentBytesV3 : kSceneSegmentBytes;
     if (record.size != header_bytes + count * segment_bytes + 4) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -323,7 +325,8 @@ static esp_err_t decodeSceneChecked(const SceneRecord &record, const Topology *c
     bool has_2d = false;
     for (uint8_t i = 0; i < count; ++i) {
         comp::SegmentSpec spec;
-        const bool ok = (schema == kSchemaV4)   ? decodeSegmentV4(p, spec, canvas_width, canvas_height)
+        const bool ok = (schema == kSchemaV4 || schema == kSchemaV5)
+                                                    ? decodeSegmentV4(p, spec, canvas_width, canvas_height)
                         : (schema == kSchemaV3) ? decodeSegment(p, spec, canvas_width, canvas_height)
                                                 : decodeSegmentV2(p, spec, canvas_width);
         if (!ok) { return ESP_ERR_INVALID_ARG; }
@@ -342,7 +345,7 @@ static esp_err_t decodeSceneChecked(const SceneRecord &record, const Topology *c
     }
     p = record.bytes + header_bytes;
     for (uint8_t i = 0; i < count; ++i) {
-        if (schema == kSchemaV4) {
+        if (schema == kSchemaV4 || schema == kSchemaV5) {
             (void)decodeSegmentV4(p, scene.segments[i], canvas_width, canvas_height);
         } else if (schema == kSchemaV3) {
             (void)decodeSegment(p, scene.segments[i], canvas_width, canvas_height);
