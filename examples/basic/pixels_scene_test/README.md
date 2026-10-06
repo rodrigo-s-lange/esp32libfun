@@ -449,3 +449,17 @@ new effects. The normal application was restored afterward with GPIO16/372,
 the 31x12 column-serpentine map, global brightness 150 and Fire controls
 Cooling=64, Spark rate=160, 2D Blur=128, Boost=12. Reboot restoration was
 confirmed from scene generation 13.
+
+### Spiral, Chase2 and Chase3 — WROOM/matrix (06/10/26)
+
+The runner now includes Spiral (id 17) plus Chase2/Chase3 (ids 18/19).
+Chase2 alternates equal blocks of two selected colors; Chase3 cycles three,
+using the existing background slot as its third color. `custom1` is the direct
+block width clamped to 1..50 pixels, and speed reuses Chase's 1..64 cells/sec
+mapping. Scene/preset fixtures and the capability manifest now cover ids 0..19.
+
+The complete runner executed on WROOM/COM6 with **9351 checks and zero
+failures**. Static DRAM is **178956/180736 bytes used (1780 free, 99.02%)**;
+IRAM is 47695/131072 bytes and the image is 672845 bytes before padding. The
+normal application was restored afterward with GPIO16/372, the 31x12
+column-serpentine map, Fire and global brightness 150 intact.

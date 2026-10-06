@@ -1501,3 +1501,25 @@ rate=160, 2D Blur=128, Boost=12, Heat palette and global brightness 150. The
 full WROOM runner passed **9029 checks with zero failures**. The application
 was restored and a reboot confirmed output, map, brightness and scene
 generation 13 from NVS.
+
+## Chase2 and Chase3 (06/10/26)
+
+The 1D catalog includes Chase2 (id 18) and Chase3 (id 19). Both move
+equal-width color blocks toward increasing source coordinates. Width is
+`custom1`, clamped directly to 1..50 pixels; speed 1..255 maps to 1..64
+cells/second and speed 0 holds the phase-zero pattern.
+
+Chase2 uses `AT+SEGCOL` and `AT+SEGCOL2`. Chase3 adds the existing third
+color slot through `AT+SEGBG`; for this effect that slot is a third moving
+color rather than a static background. Example:
+
+```text
+AT+SEGCLR
+AT+SEGSET=1,0,372,19
+AT+SEGCOL=1,255,0,0
+AT+SEGCOL2=1,0,255,0
+AT+SEGBG=1,0,0,255
+AT+SEGCUSTOM1=1,6
+AT+SEGSPEED=1,64
+AT+SEGPUB
+```

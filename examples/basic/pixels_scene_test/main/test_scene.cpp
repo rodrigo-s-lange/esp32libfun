@@ -38,7 +38,7 @@ void codecTests()
     scene.count = comp::MAX_SEGMENTS;
     scene.brightness = 71;
     scene.paused = true;
-    constexpr uint8_t effects1D[] = {0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11}; // XYGradient (4) requires 2D geometry.
+    constexpr uint8_t effects1D[] = {0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 18, 19}; // 2D-only ids are exercised below.
     constexpr unsigned kEffects1DCount = sizeof(effects1D) / sizeof(effects1D[0]);
     for (unsigned i = 0; i < scene.count; ++i) {
         auto &s = scene.segments[i];
