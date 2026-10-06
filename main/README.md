@@ -1523,3 +1523,7 @@ AT+SEGCUSTOM1=1,6
 AT+SEGSPEED=1,64
 AT+SEGPUB
 ```
+
+Physical validation on the 31x12 GPIO16 matrix covered Chase2 at widths 1,
+8 and 50 and Chase3 with red/green/blue blocks at width 6. Rodrigo approved
+the full sequence. The application then restored the accepted Fire scene.

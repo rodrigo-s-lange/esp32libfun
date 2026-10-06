@@ -463,3 +463,9 @@ failures**. Static DRAM is **178956/180736 bytes used (1780 free, 99.02%)**;
 IRAM is 47695/131072 bytes and the image is 672845 bytes before padding. The
 normal application was restored afterward with GPIO16/372, the 31x12
 column-serpentine map, Fire and global brightness 150 intact.
+
+Rodrigo visually approved Spiral on Rainbow/Lava palettes and the complete
+Chase2/Chase3 sequence on the physical 31x12 matrix. Chase2 was observed at
+block widths 1, 8 and 50; Chase3 used red/green/blue blocks at width 6. Fire
+was then restored and persisted as scene generation 25 with its accepted
+parameters unchanged.
