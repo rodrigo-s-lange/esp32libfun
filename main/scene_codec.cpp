@@ -52,7 +52,7 @@ bool valid(const comp::SegmentSpec &s, uint16_t canvas_width, uint16_t canvas_he
         return false;
     }
     const fx::FxInfo *info = fx::describe(s.effect_id);
-    if (info == nullptr || (info->work.fixed_bytes != 0 || info->work.bytes_per_cell != 0)) {
+    if (info == nullptr) {
         return false;
     }
     if (s.is2D) {

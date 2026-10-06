@@ -1485,3 +1485,19 @@ effects.
   above. Reflection of 2D segments is outside this delivery.
 - Custom parameters now have three per-segment AT setters and Stripes as a
   production consumer; see this delivery's validation record above.
+
+## Stateful Fire2012 and Labareda (06/10/26)
+
+`esp_pixels_fx` ids 15 and 16 add two distinct 2D flames. `Fire` is the
+stateful Fire2012 path: every matrix column cools, diffuses heat upward and
+sparks near the bottom, then maps through the selected palette. It declares
+one working byte per surface cell; Composer v0.2.4 now allocates, aligns,
+zeroes, carries and frees that per-segment buffer. `Labareda` preserves the
+stylized broad, laterally bending red/orange flame developed during bench
+tuning.
+
+The accepted 31x12 bench scene is Fire on GPIO16/372 with Cooling=64, Spark
+rate=160, 2D Blur=128, Boost=12, Heat palette and global brightness 150. The
+full WROOM runner passed **9029 checks with zero failures**. The application
+was restored and a reboot confirmed output, map, brightness and scene
+generation 13 from NVS.

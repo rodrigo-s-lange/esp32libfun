@@ -173,7 +173,7 @@ void presetCodecTests()
     // with real h>1 geometry (the same 5x14 serpentine matrix over
     // topology2's own 70-pixel two-output topology test_scene.cpp's own
     // codecTests() already establishes for the scene codec), cycling
-    // effect_id through the new genuinely-2D ids 12..14 -- never the 1D-only
+    // effect_id through the genuinely-2D ids 12..16 -- never the 1D-only
     // effects1D[] fixture above.
     const bench::MapConfig matrix2d{5, 14, 0, bench::MapWiring::ColumnSerpentine};
     comp::AtScene scene2d{};
@@ -183,7 +183,7 @@ void presetCodecTests()
     scene2d.segments[0].w = 5;
     scene2d.segments[0].h = 14;
     bench::PresetRecord record2d{};
-    for (uint8_t id2d : {uint8_t{12}, uint8_t{13}, uint8_t{14}}) {
+    for (uint8_t id2d : {uint8_t{12}, uint8_t{13}, uint8_t{14}, uint8_t{15}, uint8_t{16}}) {
         scene2d.segments[0].effect_id = id2d;
         CHECK(bench::encodePreset("2D", 2, scene2d, topology2, matrix2d, 1, record2d) == ESP_OK);
         comp::AtScene decoded2d{};

@@ -238,11 +238,11 @@ void codecTests()
     CHECK(!decoded.segments[1].is2D && decoded.segments[1].stop == 70);
     // 2D pixel effects batch 1: effect_id is an opaque byte at the codec
     // level (verified against the actual code, not assumed -- see this
-    // file's own "Persistence" note), but IDs 12..14 are genuinely 2D-only
+    // file's own "Persistence" note), but IDs 12..16 are genuinely 2D-only
     // at the FX registry level, so this reuses the SAME real h>1 matrix
     // geometry above (never the 1D-only effects1D[] fixture) to prove each
     // one specifically survives a 2D-segment round trip.
-    for (uint8_t id2d : {uint8_t{12}, uint8_t{13}, uint8_t{14}}) {
+    for (uint8_t id2d : {uint8_t{12}, uint8_t{13}, uint8_t{14}, uint8_t{15}, uint8_t{16}}) {
         scene.segments[0].effect_id = id2d;
         CHECK(bench::encodeScene(scene, two, matrix, 1, reencoded) == ESP_OK);
         decoded = comp::AtScene{};

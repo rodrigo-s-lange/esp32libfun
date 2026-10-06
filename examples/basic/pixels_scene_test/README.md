@@ -434,3 +434,18 @@ pixel 361 was isolated with a temporary 373-position transmission and repaired
 in the matrix hardware; the complete 31-column sweep then passed. Capture:
 `build/hardware-column-serpentine-tests-pass.log` for the automated runner;
 the visual sweep logs are generated bench artifacts under root `bapp/`.
+
+### Stateful Fire and Labareda — WROOM/matrix (06/10/26)
+
+The runner now links the permanent Fire and Labareda tests. Fire (id 15) uses
+Composer-bound working memory for a persistent one-byte-per-cell Fire2012 heat
+simulation; Labareda (id 16) preserves the separate broad, laterally bending
+flame developed during physical tuning. Scene and preset maximum-size fixtures,
+the network capability list and its fixture now include ids through 16.
+
+The rebuilt runner executed on WROOM/COM6 with **9029 checks, zero failures**,
+including Composer working-buffer allocation/alignment/carry-forward and both
+new effects. The normal application was restored afterward with GPIO16/372,
+the 31x12 column-serpentine map, global brightness 150 and Fire controls
+Cooling=64, Spark rate=160, 2D Blur=128, Boost=12. Reboot restoration was
+confirmed from scene generation 13.
