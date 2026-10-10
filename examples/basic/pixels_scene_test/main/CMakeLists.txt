@@ -16,6 +16,7 @@ idf_component_register(SRCS "main.cpp" "nvs_mock.cpp" "test_scene.cpp" "test_pre
     "${BENCH_ROOT}/../esp_pixels_fx/test/test_spiral.cpp"
     "${BENCH_ROOT}/../esp_pixels_fx/test/test_chase_variants.cpp"
     "${BENCH_ROOT}/../esp_pixels_fx/test/test_snake.cpp"
+    "${BENCH_ROOT}/../esp_pixels_fx/test/test_tetris.cpp"
     "${BENCH_ROOT}/main/scene_codec.cpp" "${BENCH_ROOT}/main/scene_store.cpp"
     "${BENCH_ROOT}/main/preset_codec.cpp" "${BENCH_ROOT}/main/preset_store.cpp" "${BENCH_ROOT}/main/presets_at.cpp"
     "${BENCH_ROOT}/main/output_store.cpp" "${BENCH_ROOT}/main/outputs_at.cpp"

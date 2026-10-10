@@ -49,6 +49,8 @@ extern int run_chase_variants_tests();
 extern int chase_variants_check_count();
 extern int run_snake_tests();
 extern int snake_check_count();
+extern int run_tetris_tests();
+extern int tetris_check_count();
 
 extern "C" void app_main()
 {
@@ -81,23 +83,25 @@ extern "C" void app_main()
     const int spiral = run_spiral_tests();
     const int chase_variants = run_chase_variants_tests();
     const int snake = run_snake_tests();
+    const int tetris = run_tetris_tests();
     const int count = composer_check_count() + composer_at_check_count() + scene_check_count() +
         preset_check_count() + output_check_count() + map_check_count() + xy_gradient_check_count() +
         stripes_check_count() + blink_check_count() + breathe_check_count() + chase_check_count() +
         meteor_check_count() + twinkle_check_count() + running_lights_check_count() +
         plasma_check_count() + matrix_rain_check_count() + ripple_check_count() + fire_check_count() +
-        labareda_check_count() + spiral_check_count() + chase_variants_check_count() + snake_check_count();
+        labareda_check_count() + spiral_check_count() + chase_variants_check_count() + snake_check_count() +
+        tetris_check_count();
     const int total_failed = core + at + scene + preset + outputs + map + xy + stripes + blink + breathe +
         chase + meteor + twinkle + running_lights + plasma + matrix_rain + ripple + fire + labareda + spiral +
-        chase_variants + snake;
+        chase_variants + snake + tetris;
     for (;;) {
         ESP_LOGI("SCENE_TEST",
                  "core=%d AT=%d scene=%d preset=%d outputs=%d map=%d xy=%d stripes=%d blink=%d breathe=%d "
                  "chase=%d meteor=%d twinkle=%d running_lights=%d plasma=%d matrix_rain=%d ripple=%d fire=%d labareda=%d "
-                 "spiral=%d chase_variants=%d snake=%d checks=%d RESULT=%s",
+                 "spiral=%d chase_variants=%d snake=%d tetris=%d checks=%d RESULT=%s",
                  core, at, scene, preset, outputs, map, xy, stripes, blink, breathe, chase, meteor, twinkle,
-                 running_lights, plasma, matrix_rain, ripple, fire, labareda, spiral, chase_variants, snake, count,
-                 total_failed == 0 ? "ALL_PASS" : "FAIL");
+                 running_lights, plasma, matrix_rain, ripple, fire, labareda, spiral, chase_variants, snake, tetris,
+                 count, total_failed == 0 ? "ALL_PASS" : "FAIL");
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
